@@ -53,7 +53,15 @@ class _ContentEditorScreenState extends State<ContentEditorScreen> {
       }
 
       final defaultData = _getDefaultData(widget.docId);
-      final data = {...defaultData, ...fetchedData};
+      final Map<String, dynamic> data = {...defaultData, ...fetchedData};
+
+      // Explicitly remove legacy social fields from contact section to avoid confusion
+      if (widget.docId == 'contact') {
+        data.remove('github');
+        data.remove('linkedin');
+        data.remove('socialLinks'); // socialLinks moved to 'about'
+      }
+
       final sortedKeys = data.keys.toList()..sort();
 
       for (var key in sortedKeys) {
@@ -134,7 +142,10 @@ class _ContentEditorScreenState extends State<ContentEditorScreen> {
           'education': [
             {"degree": "Degree", "institution": "University", "year": "2024"}
           ],
-          'interests': []
+          'interests': [],
+          'socialLinks': [
+            {'platform': 'github', 'url': ''}
+          ]
         };
       case 'contact':
         return {
@@ -570,6 +581,7 @@ class _ContentEditorScreenState extends State<ContentEditorScreen> {
     if (['frontend', 'backend', 'mobile', 'frameworks', 'tools'].contains(key))
       return {"name": "", "level": "90"};
     if (key == 'items') return {"label": "", "href": ""};
+    if (key == 'socialLinks') return {"platform": "", "url": ""};
 
     return {"title": "", "description": ""}; // Generic fallback
   }

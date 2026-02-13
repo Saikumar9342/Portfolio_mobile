@@ -117,9 +117,10 @@ class HomeScreen extends StatelessWidget {
                   onTap: () => _navToEditor(context, 'Hero Section', 'hero'),
                 ),
                 _ContentItem(
-                  title: "About Me",
+                  title: "About & Socials",
                   icon: Icons.person_outline,
-                  onTap: () => _navToEditor(context, 'About Me', 'about'),
+                  onTap: () =>
+                      _navToEditor(context, 'About & Socials', 'about'),
                 ),
                 _ContentItem(
                   title: "Expertise",

@@ -123,11 +123,20 @@ class _ResumeUploadScreenState extends State<ResumeUploadScreen> {
       bio = bioMatch.group(1)?.replaceAll('\n', ' ').trim() ?? bio;
     }
 
+    final linkedinRegex =
+        RegExp(r'linkedin\.com/in/[\w-]+', caseSensitive: false);
+    final linkedin = linkedinRegex.firstMatch(text)?.group(0) ?? '';
+
+    final githubRegex = RegExp(r'github\.com/[\w-]+', caseSensitive: false);
+    final github = githubRegex.firstMatch(text)?.group(0) ?? '';
+
     _extractedProfile = {
       'name': name,
       'email': email,
       'bio': bio,
       'skills': foundSkills,
+      'linkedin': linkedin.isNotEmpty ? "https://$linkedin" : "",
+      'github': github.isNotEmpty ? "https://$github" : "",
     };
 
     // 2. Projects
@@ -220,6 +229,8 @@ class _ResumeUploadScreenState extends State<ResumeUploadScreen> {
       // Logic same as before...
       final name = _extractedProfile['name'];
       final email = _extractedProfile['email'] ?? '';
+      final linkedin = _extractedProfile['linkedin'] ?? '';
+      final github = _extractedProfile['github'] ?? '';
       final skills = List<String>.from(_extractedProfile['skills'] ?? []);
       final role = _extractedProfile['role'] ?? 'Software Engineer';
 
@@ -229,14 +240,42 @@ class _ResumeUploadScreenState extends State<ResumeUploadScreen> {
         'badge': "Available for Work",
       });
 
-      if (email.isNotEmpty) {
-        await _firestoreService.updateContent('contact', {'email': email});
+      Map<String, dynamic> contactData = {};
+      if (email.isNotEmpty) contactData['email'] = email;
+      if (contactData.isNotEmpty) {
+        await _firestoreService.updateContent('contact', contactData);
       }
 
-      // Update about profile too
-      await _firestoreService.updateContent('about', {
+      List<Map<String, String>> socialLinks = [];
+      if (linkedin.isNotEmpty) {
+        socialLinks.add({'platform': 'linkedin', 'url': linkedin});
+      }
+      if (github.isNotEmpty) {
+        socialLinks.add({'platform': 'github', 'url': github});
+      }
+
+      // Add moreLinks if they exist
+      final List<Map<String, dynamic>>? moreLinks =
+          _extractedProfile['moreLinks'] != null
+              ? List<Map<String, dynamic>>.from(_extractedProfile['moreLinks'])
+              : null;
+      if (moreLinks != null) {
+        for (var link in moreLinks) {
+          socialLinks.add({
+            'platform': link['platform'].toString(),
+            'url': link['url'].toString()
+          });
+        }
+      }
+
+      // Update about profile including social links
+      Map<String, dynamic> aboutUpdate = {
         'biography': _extractedProfile['bio'] ?? '',
-      });
+      };
+      if (socialLinks.isNotEmpty) {
+        aboutUpdate['socialLinks'] = socialLinks;
+      }
+      await _firestoreService.updateContent('about', aboutUpdate);
 
       // Add skills to skills section
       if (skills.isNotEmpty) {
@@ -323,6 +362,156 @@ class _ResumeUploadScreenState extends State<ResumeUploadScreen> {
     );
   }
 
+  void _editProfile() {
+    final nameCtrl = TextEditingController(text: _extractedProfile['name']);
+    final bioCtrl = TextEditingController(text: _extractedProfile['bio']);
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppTheme.surfaceColor,
+        title: Text("Edit Profile",
+            style: GoogleFonts.outfit(color: Colors.white)),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              CustomTextField(label: "NAME", controller: nameCtrl),
+              const SizedBox(height: 16),
+              CustomTextField(
+                  label: "BIO", controller: bioCtrl, isMultiline: true),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx), child: const Text("Cancel")),
+          TextButton(
+            onPressed: () {
+              setState(() {
+                _extractedProfile['name'] = nameCtrl.text;
+                _extractedProfile['bio'] = bioCtrl.text;
+              });
+              Navigator.pop(ctx);
+            },
+            child: const Text("Save",
+                style: TextStyle(color: AppTheme.primaryColor)),
+          )
+        ],
+      ),
+    );
+  }
+
+  void _editSocialLinks() {
+    final lnCtrl = TextEditingController(text: _extractedProfile['linkedin']);
+    final ghCtrl = TextEditingController(text: _extractedProfile['github']);
+
+    // Add provision for more links
+    final List<Map<String, dynamic>> moreLinks =
+        List.from(_extractedProfile['moreLinks'] ?? []);
+    final List<TextEditingController> platformCtrls = moreLinks
+        .map((e) => TextEditingController(text: e['platform']))
+        .toList();
+    final List<TextEditingController> urlCtrls =
+        moreLinks.map((e) => TextEditingController(text: e['url'])).toList();
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          backgroundColor: AppTheme.surfaceColor,
+          title: Text("Edit Social Links",
+              style: GoogleFonts.outfit(color: Colors.white)),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                CustomTextField(label: "LINKEDIN URL", controller: lnCtrl),
+                const SizedBox(height: 16),
+                CustomTextField(label: "GITHUB URL", controller: ghCtrl),
+                const Divider(height: 32, color: Colors.white10),
+                Text("ADDITIONAL LINKS",
+                    style: GoogleFonts.inter(
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                        color: AppTheme.primaryColor)),
+                const SizedBox(height: 8),
+                ...List.generate(
+                    platformCtrls.length,
+                    (index) => Padding(
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                  flex: 2,
+                                  child: CustomTextField(
+                                      label: "PLATFORM",
+                                      controller: platformCtrls[index])),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                  flex: 3,
+                                  child: CustomTextField(
+                                      label: "URL",
+                                      controller: urlCtrls[index])),
+                              IconButton(
+                                icon: const Icon(Icons.remove_circle_outline,
+                                    color: Colors.redAccent, size: 20),
+                                onPressed: () {
+                                  setDialogState(() {
+                                    platformCtrls.removeAt(index);
+                                    urlCtrls.removeAt(index);
+                                  });
+                                },
+                              )
+                            ],
+                          ),
+                        )),
+                TextButton.icon(
+                  onPressed: () {
+                    setDialogState(() {
+                      platformCtrls.add(TextEditingController());
+                      urlCtrls.add(TextEditingController());
+                    });
+                  },
+                  icon: const Icon(Icons.add, size: 16),
+                  label: const Text("ADD LINK"),
+                )
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text("Cancel")),
+            TextButton(
+              onPressed: () {
+                setState(() {
+                  _extractedProfile['linkedin'] = lnCtrl.text;
+                  _extractedProfile['github'] = ghCtrl.text;
+
+                  List<Map<String, String>> savedMoreLinks = [];
+                  for (int i = 0; i < platformCtrls.length; i++) {
+                    if (platformCtrls[i].text.isNotEmpty &&
+                        urlCtrls[i].text.isNotEmpty) {
+                      savedMoreLinks.add({
+                        'platform': platformCtrls[i].text.toLowerCase(),
+                        'url': urlCtrls[i].text
+                      });
+                    }
+                  }
+                  _extractedProfile['moreLinks'] = savedMoreLinks;
+                });
+                Navigator.pop(ctx);
+              },
+              child: const Text("Save",
+                  style: TextStyle(color: AppTheme.primaryColor)),
+            )
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -403,7 +592,17 @@ class _ResumeUploadScreenState extends State<ResumeUploadScreen> {
     return ListView(
       padding: const EdgeInsets.all(20),
       children: [
-        _SectionHeader(title: "EXTRACTED PROFILE"),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            _SectionHeader(title: "EXTRACTED PROFILE"),
+            IconButton(
+              icon:
+                  const Icon(Icons.edit_outlined, color: AppTheme.primaryColor),
+              onPressed: _editProfile,
+            ),
+          ],
+        ),
         GradientCard(
             child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -413,6 +612,51 @@ class _ResumeUploadScreenState extends State<ResumeUploadScreen> {
             _InfoRow(icon: Icons.email, value: _extractedProfile['email']),
             const SizedBox(height: 12),
             _InfoRow(icon: Icons.info_outline, value: _extractedProfile['bio']),
+          ],
+        )),
+        const SizedBox(height: 24),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            _SectionHeader(title: "SOCIAL LINKS"),
+            IconButton(
+              icon:
+                  const Icon(Icons.edit_outlined, color: AppTheme.primaryColor),
+              onPressed: _editSocialLinks,
+            ),
+          ],
+        ),
+        GradientCard(
+            child: Column(
+          children: [
+            if (_extractedProfile['linkedin'] != null &&
+                _extractedProfile['linkedin'].isNotEmpty)
+              _InfoRow(icon: Icons.link, value: _extractedProfile['linkedin']),
+            if (_extractedProfile['github'] != null &&
+                _extractedProfile['github'].isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: 12),
+                child: _InfoRow(
+                    icon: Icons.code, value: _extractedProfile['github']),
+              ),
+            ...(_extractedProfile['moreLinks'] as List<Map<String, String>>? ??
+                    [])
+                .map((link) => Padding(
+                      padding: const EdgeInsets.only(top: 12),
+                      child: _InfoRow(
+                          icon: Icons.alternate_email,
+                          value:
+                              "${link['platform']?.toUpperCase()}: ${link['url']}"),
+                    )),
+            if ((_extractedProfile['linkedin'] == null ||
+                    _extractedProfile['linkedin'].isEmpty) &&
+                (_extractedProfile['github'] == null ||
+                    _extractedProfile['github'].isEmpty) &&
+                (_extractedProfile['moreLinks'] == null ||
+                    (_extractedProfile['moreLinks'] as List).isEmpty))
+              Text("No social links found. Tap edit to add.",
+                  style: GoogleFonts.inter(
+                      color: AppTheme.textSecondary, fontSize: 13)),
           ],
         )),
         const SizedBox(height: 24),
