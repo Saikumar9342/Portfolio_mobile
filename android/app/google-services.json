@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "16450323072",
+    "project_id": "portfolio-86c25",
+    "storage_bucket": "portfolio-86c25.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:16450323072:android:1a20873bdfa4db5bb11c65",
+        "android_client_info": {
+          "package_name": "com.finsol.portfolio_mobile"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCDVLDInUis2W8SGNXcCVuwYXMoiuQuWvI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
