@@ -691,8 +691,9 @@ class _ContentEditorScreenState extends State<ContentEditorScreen> {
 
   Map<String, dynamic> _getTemplateForItem(String key) {
     // Provide templates for known keys to ensure structure
-    if (key == 'education')
+    if (key == 'education') {
       return {"degree": "", "institution": "", "year": ""};
+    }
     if (key == 'stats') return {"label": "", "value": ""};
     if (key == 'services') return {"id": "", "title": "", "description": ""};
 

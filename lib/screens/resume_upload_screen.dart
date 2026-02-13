@@ -201,14 +201,14 @@ class _ResumeUploadScreenState extends State<ResumeUploadScreen> {
       if (parts.length > 1) {
         description = parts[0].trim();
         fullDescription =
-            parts[0].trim() + "\n\nKey Responsibilities:\n" + parts[1].trim();
+            "${parts[0].trim()}\n\nKey Responsibilities:\n${parts[1].trim()}";
       } else {
         // Heuristic: First 2 sentences as short description
         final sentences = rawDescription.split(RegExp(r'(?<=\. )'));
         if (sentences.isNotEmpty) {
           description = sentences.take(2).join(' ').trim();
           if (description.length > 150) {
-            description = description.substring(0, 147) + '...';
+            description = '${description.substring(0, 147)}...';
           }
         } else {
           description = rawDescription;
@@ -267,7 +267,7 @@ class _ResumeUploadScreenState extends State<ResumeUploadScreen> {
               'title': potentialTitle,
               'role': 'Developer',
               'description': blockText.length > 150
-                  ? blockText.substring(0, 147) + '...'
+                  ? '${blockText.substring(0, 147)}...'
                   : blockText,
               'fullDescription': blockText,
               'techStack': knownSkills
@@ -767,7 +767,7 @@ class _ResumeUploadScreenState extends State<ResumeUploadScreen> {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            _SectionHeader(title: "EXTRACTED PROFILE"),
+            const _SectionHeader(title: "EXTRACTED PROFILE"),
             IconButton(
               icon:
                   const Icon(Icons.edit_outlined, color: AppTheme.primaryColor),
@@ -790,7 +790,7 @@ class _ResumeUploadScreenState extends State<ResumeUploadScreen> {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            _SectionHeader(title: "SOCIAL LINKS"),
+            const _SectionHeader(title: "SOCIAL LINKS"),
             IconButton(
               icon:
                   const Icon(Icons.edit_outlined, color: AppTheme.primaryColor),
@@ -836,7 +836,7 @@ class _ResumeUploadScreenState extends State<ResumeUploadScreen> {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            _SectionHeader(title: "EXTRACTED SKILLS"),
+            const _SectionHeader(title: "EXTRACTED SKILLS"),
             IconButton(
               icon:
                   const Icon(Icons.edit_outlined, color: AppTheme.primaryColor),

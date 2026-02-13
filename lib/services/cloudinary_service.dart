@@ -2,9 +2,13 @@ import 'package:cloudinary_public/cloudinary_public.dart';
 import 'package:image_picker/image_picker.dart';
 
 class CloudinaryService {
-  // TODO: Replace with your actual cloud name and upload preset
-  final CloudinaryPublic cloudinary =
+  // Upload presets:
+  // - portfolio_upload: images
+  // - portfolio_resume: raw PDFs
+  final CloudinaryPublic imageCloudinary =
       CloudinaryPublic('dhcdhtpfj', 'portfolio_upload', cache: false);
+  final CloudinaryPublic resumeCloudinary =
+      CloudinaryPublic('dhcdhtpfj', 'portfolio_resume', cache: false);
   final ImagePicker _picker = ImagePicker();
 
   Future<String?> pickAndUploadImage() async {
@@ -12,7 +16,7 @@ class CloudinaryService {
       final XFile? image = await _picker.pickImage(source: ImageSource.gallery);
       if (image == null) return null;
 
-      CloudinaryResponse response = await cloudinary.uploadFile(
+      CloudinaryResponse response = await imageCloudinary.uploadFile(
         CloudinaryFile.fromFile(image.path,
             resourceType: CloudinaryResourceType.Image),
       );
@@ -35,10 +39,10 @@ class CloudinaryService {
 
   Future<String?> uploadPdf(String path) async {
     try {
-      CloudinaryResponse response = await cloudinary.uploadFile(
+      CloudinaryResponse response = await resumeCloudinary.uploadFile(
         CloudinaryFile.fromFile(
           path,
-          resourceType: CloudinaryResourceType.Auto,
+          resourceType: CloudinaryResourceType.Raw,
           folder: 'resumes',
         ),
       );
