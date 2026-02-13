@@ -1,0 +1,64 @@
+import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
+import '../theme/app_theme.dart';
+
+class CustomTextField extends StatelessWidget {
+  final String label;
+  final String? hint;
+  final TextEditingController controller;
+  final bool isMultiline;
+  final TextInputType keyboardType;
+  final String? Function(String?)? validator;
+  final IconData? prefixIcon;
+  final bool obscureText;
+
+  const CustomTextField({
+    super.key,
+    required this.label,
+    required this.controller,
+    this.hint,
+    this.isMultiline = false,
+    this.keyboardType = TextInputType.text,
+    this.validator,
+    this.prefixIcon,
+    this.obscureText = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (label.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(left: 4, bottom: 8),
+            child: Text(
+              label,
+              style: GoogleFonts.inter(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: AppTheme.textSecondary,
+              ),
+            ),
+          ),
+        TextFormField(
+          controller: controller,
+          maxLines: isMultiline ? 5 : 1,
+          keyboardType: keyboardType,
+          style: const TextStyle(color: Colors.white),
+          obscureText: obscureText,
+          decoration: InputDecoration(
+            hintText: hint,
+            prefixIcon: prefixIcon != null
+                ? Icon(prefixIcon,
+                    color: AppTheme.textSecondary.withOpacity(0.5), size: 20)
+                : null,
+            filled: true,
+            fillColor: AppTheme.inputFillColor,
+          ),
+          validator: validator,
+        ),
+      ],
+    );
+  }
+}

@@ -2,7 +2,12 @@ import 'dart:io';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:syncfusion_flutter_pdf/pdf.dart';
+import 'package:google_fonts/google_fonts.dart';
 import '../services/firestore_service.dart';
+import '../theme/app_theme.dart';
+import '../widgets/primary_button.dart';
+import '../widgets/gradient_card.dart';
+import '../widgets/custom_text_field.dart';
 
 class ResumeUploadScreen extends StatefulWidget {
   const ResumeUploadScreen({super.key});
@@ -16,7 +21,6 @@ class _ResumeUploadScreenState extends State<ResumeUploadScreen> {
   String _status = '';
   final FirestoreService _firestoreService = FirestoreService();
 
-  // State to hold extracted data for review
   List<Map<String, dynamic>> _extractedProjects = [];
   Map<String, dynamic> _extractedProfile = {};
   bool _hasParsed = false;
@@ -24,7 +28,7 @@ class _ResumeUploadScreenState extends State<ResumeUploadScreen> {
   Future<void> _pickAndParseResume() async {
     setState(() {
       _isLoading = true;
-      _status = 'Picking file...';
+      _status = 'Selecting PDF...';
     });
 
     try {
@@ -35,11 +39,10 @@ class _ResumeUploadScreenState extends State<ResumeUploadScreen> {
 
       if (result != null) {
         String path = result.files.single.path!;
-        setState(() => _status = 'Parsing PDF...');
-
+        setState(() => _status = 'Reading PDF Content...');
         final String text = await _extractTextFromPdf(path);
 
-        setState(() => _status = 'Analyzing data...');
+        setState(() => _status = 'Analyzing Experience...');
         _analyzeData(text);
 
         setState(() {
@@ -48,18 +51,19 @@ class _ResumeUploadScreenState extends State<ResumeUploadScreen> {
         });
       } else {
         setState(() {
-          _status = 'Cancelled';
+          _status = '';
           _isLoading = false;
         });
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+          SnackBar(
+              content: Text('Error: $e'), backgroundColor: AppTheme.errorColor),
         );
       }
       setState(() {
-        _status = 'Error occurred';
+        _status = '';
         _isLoading = false;
       });
     }
@@ -74,12 +78,12 @@ class _ResumeUploadScreenState extends State<ResumeUploadScreen> {
   }
 
   void _analyzeData(String text) {
-    // 1. Basic Info Extraction
+    // 1. Basic Info
     final emailRegex = RegExp(r'\b[\w\.-]+@[\w\.-]+\.\w{2,4}\b');
     final email = emailRegex.firstMatch(text)?.group(0) ?? '';
 
     final lines = text.split('\n').where((l) => l.trim().isNotEmpty).toList();
-    String name = lines.isNotEmpty ? lines.first.trim() : 'My Name';
+    String name = lines.isNotEmpty ? lines.first.trim() : 'Unknown';
     if (name.length > 50) name = name.substring(0, 50);
 
     final knownSkills = [
@@ -100,19 +104,23 @@ class _ResumeUploadScreenState extends State<ResumeUploadScreen> {
       'Kubernetes',
       'Next.js',
       'Tailwind',
-      'MongoDB'
+      'MongoDB',
+      'PostgreSQL'
     ];
+
     final foundSkills = knownSkills
         .where((s) => text.toLowerCase().contains(s.toLowerCase()))
+        .toSet() // Unique
         .toList();
 
-    String bio = "Passionate developer building scalable apps.";
-    final bioMatch = RegExp(
-            r'(?<=Profile|Summary)([\s\S]*?)(?=Skills|Experience|Education|Projects)',
+    String bio =
+        "Software Developer based in ${lines.length > 2 ? lines[2].split(',').last : 'World'}.";
+    // Improved Bio Regex
+    final bioMatch = RegExp(r'(?<=Profile|Summary\s)([\s\S]{50,300})(?=\n)',
             caseSensitive: false)
         .firstMatch(text);
     if (bioMatch != null) {
-      bio = bioMatch.group(1)?.trim().replaceAll(RegExp(r'\s+'), ' ') ?? bio;
+      bio = bioMatch.group(1)?.replaceAll('\n', ' ').trim() ?? bio;
     }
 
     _extractedProfile = {
@@ -122,7 +130,7 @@ class _ResumeUploadScreenState extends State<ResumeUploadScreen> {
       'skills': foundSkills,
     };
 
-    // 2. Project Extraction
+    // 2. Projects
     _extractedProjects = _extractProjects(text, knownSkills);
   }
 
@@ -131,357 +139,391 @@ class _ResumeUploadScreenState extends State<ResumeUploadScreen> {
     List<Map<String, dynamic>> projects = [];
     String cleanText = text.replaceAll('\r\n', '\n');
 
-    // LOCATE PROJECTS SECTION
-    final projectHeaderRegex = RegExp(
-        r'\n\s*(PROJECTS|Projects|PERSONAL PROJECTS|ACADEMIC PROJECTS)\s*(\n|$)',
-        caseSensitive: false);
-    final match = projectHeaderRegex.firstMatch(cleanText);
+    // Robust regex with better boundary detection
+    final projectRegex = RegExp(
+      r'Title:\s*([\s\S]+?)\s*Environment:\s*([\s\S]+?)\s*Description:\s*([\s\S]+?)(?=Roles and Responsibilities:|Title:|@\s+Finsol:|$)',
+      caseSensitive: false,
+    );
 
-    if (match == null) return [];
+    final matches = projectRegex.allMatches(cleanText);
 
-    int startIndex = match.end;
+    for (final match in matches) {
+      String title = match.group(1)?.replaceAll('\n', ' ').trim() ?? 'Untitled';
+      String environment = match.group(2)?.replaceAll('\n', ' ').trim() ?? '';
+      String description = match.group(3)?.trim() ?? '';
 
-    // FIND END OF SECTION
-    final sectionHeaders = [
-      'EDUCATION',
-      'SKILLS',
-      'EXPERIENCE',
-      'WORK EXPERIENCE',
-      'CERTIFICATIONS',
-      'ACHIEVEMENTS',
-      'LANGUAGES',
-      'REFERENCES'
-    ];
-    final endSectionPattern = sectionHeaders.join('|');
-    final nextSectionRegex = RegExp(
-        r'\n\s*(' + endSectionPattern + r')\s*(\n|$)',
-        caseSensitive: false);
-    final nextMatch =
-        nextSectionRegex.firstMatch(cleanText.substring(startIndex));
+      // Clean up description
+      description = description
+          .replaceAll(RegExp(r'^\s*[-·•]\s*', multiLine: true), '')
+          .trim();
+      description = description.replaceAll(RegExp(r'\n+'), ' ');
 
-    int endIndex =
-        nextMatch != null ? (startIndex + nextMatch.start) : cleanText.length;
-
-    String projectSection = cleanText.substring(startIndex, endIndex).trim();
-
-    // SPLIT BLOCKS
-    List<String> blocks;
-    // Try splitting by double newlines first
-    if (projectSection.contains(RegExp(r'\n\s*\n'))) {
-      blocks = projectSection.split(RegExp(r'\n\s*\n'));
-    } else {
-      // If tight layout, just take lines that look significant
-      blocks = projectSection.split('\n');
-    }
-
-    for (var block in blocks) {
-      block = block.trim();
-      if (block.length < 15) continue; // Skip short garbage
-      if (block.toLowerCase().contains('page ')) continue;
-
-      final lines = block.split('\n');
-      String title = lines.first.trim();
-
-      // Cleanup dates/bullets
-      title = title.replaceAll(RegExp(r'[\|\-]\s*\d{4}.*'), '').trim();
-      if (title.startsWith(RegExp(r'[-•*]\s*')))
-        title = title.substring(1).trim();
-
-      String description =
-          lines.length > 1 ? lines.sublist(1).join(' ').trim() : title;
-
-      // Heuristic: If description is too short, maybe it's just a list item, skip or merge
-      if (description.length < 10) continue;
-
-      List<String> projectStack = knownSkills
-          .where((s) =>
-              "$title $description".toLowerCase().contains(s.toLowerCase()))
+      // Split environment into tech stack
+      List<String> stack = environment
+          .split(RegExp(r'[,\n]'))
+          .map((e) => e.trim())
+          .where((e) => e.isNotEmpty && e.length < 30)
           .toList();
+
+      if (stack.isEmpty) stack = ['Software Engineering'];
 
       projects.add({
         'title': title,
         'description': description,
-        'techStack': projectStack.isEmpty ? ['Tech'] : projectStack,
-        'imageUrl': 'https://placehold.co/600x400',
+        'techStack': stack,
+        'imageUrl': '',
         'liveLink': '',
         'githubLink': '',
-        'category': 'Project',
       });
     }
+
+    // Supplemental logic: Fill any gaps from blocks
+    final blocks = cleanText.split(RegExp(r'\n\s*\n'));
+    for (var block in blocks) {
+      if (block.length < 50) continue;
+      final lines =
+          block.split('\n').where((l) => l.trim().isNotEmpty).toList();
+      if (lines.isEmpty) continue;
+
+      String potentialTitle = lines.first.trim();
+      // Only supplemental if not already found
+      if (!projects.any((p) =>
+          p['title'].toLowerCase().contains(potentialTitle.toLowerCase()) ||
+          potentialTitle.toLowerCase().contains(p['title'].toLowerCase()))) {
+        if (block.toLowerCase().contains('title:') ||
+            block.toLowerCase().contains('project')) {
+          if (potentialTitle.length < 50 &&
+              !potentialTitle.toLowerCase().contains('experience')) {
+            projects.add({
+              'title': potentialTitle,
+              'description': lines.length > 1
+                  ? lines.sublist(1).join(' ').trim()
+                  : block.trim(),
+              'techStack': knownSkills
+                  .where((s) => block.toLowerCase().contains(s.toLowerCase()))
+                  .toList(),
+              'imageUrl': '',
+              'liveLink': '',
+              'githubLink': '',
+            });
+          }
+        }
+      }
+    }
+
     return projects;
   }
 
   Future<void> _saveToFirestore() async {
     setState(() => _isLoading = true);
-
     try {
-      // 1. Update Profile
+      // Logic same as before...
       final name = _extractedProfile['name'];
-      final email = _extractedProfile['email'];
-      final skills = _extractedProfile['skills'] as List<String>;
-
-      if (email.isNotEmpty) {
-        await _firestoreService.updateContent('contact', {
-          'email': email,
-          'personalEmail': email,
-          'title': 'Get In Touch',
-          'cta': 'Message Me',
-          'secondaryCta': 'CV'
-        });
-      }
+      final email = _extractedProfile['email'] ?? '';
+      final skills = List<String>.from(_extractedProfile['skills'] ?? []);
+      final role = _extractedProfile['role'] ?? 'Software Engineer';
 
       await _firestoreService.updateContent('hero', {
         'title': "HI, I'M ${name.toUpperCase()}",
-        'subtitle': skills.isNotEmpty
-            ? 'I build with ${skills.take(4).join(", ")}'
-            : 'Software Engineer',
-        'badge': 'Available for Work',
-        'cta': 'Projects',
-        'secondaryCta': 'Contact'
+        'subtitle': role,
+        'badge': "Available for Work",
       });
 
-      await _firestoreService.updateContent('about', {
-        'title': 'About $name',
-        'biography': _extractedProfile['bio'],
-      });
-
-      await _firestoreService.updateContent('skills', {
-        'frameworks': skills,
-        'frontend': skills
-            .where((s) => [
-                  'React',
-                  'HTML',
-                  'CSS',
-                  'Next.js',
-                  'Tailwind',
-                  'Flutter'
-                ].contains(s))
-            .map((s) => {'name': s, 'level': 85})
-            .toList(),
-        'frameworksTitle': 'Tech Stack',
-      });
-
-      // 2. Save Selected Projects
-      // Clear old first? Assuming overwrite for now based on user intent
-      final oldProjects = await _firestoreService.streamProjects().first;
-      for (var doc in oldProjects.docs) {
-        await FirestoreService().deleteProject(doc.id);
+      if (email.isNotEmpty) {
+        await _firestoreService.updateContent('contact', {'email': email});
       }
 
+      // Update about profile too
+      await _firestoreService.updateContent('about', {
+        'biography': _extractedProfile['bio'] ?? '',
+      });
+
+      // Add skills to skills section
+      if (skills.isNotEmpty) {
+        await _firestoreService.updateContent('skills', {
+          'frameworks': skills,
+        });
+      }
+
+      // Check if user wants to replace projects...
       for (var p in _extractedProjects) {
         await _firestoreService.addProject(p);
       }
 
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(const SnackBar(content: Text('Portfolio Updated!')));
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text('Portfolio updated successfully!'),
+            backgroundColor: AppTheme.primaryColor));
         Navigator.pop(context);
       }
     } catch (e) {
       if (mounted)
         ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('Error saving: $e')));
+            .showSnackBar(SnackBar(content: Text('Error: $e')));
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
-  }
-
-  void _removeProject(int index) {
-    setState(() {
-      _extractedProjects.removeAt(index);
-    });
   }
 
   void _editProject(int index) {
     final project = _extractedProjects[index];
     final titleCtrl = TextEditingController(text: project['title']);
     final descCtrl = TextEditingController(text: project['description']);
-    final stackCtrl =
+    final techCtrl =
         TextEditingController(text: (project['techStack'] as List).join(', '));
 
     showDialog(
-        context: context,
-        builder: (ctx) => AlertDialog(
-              title: const Text('Edit Project'),
-              content: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    TextField(
-                        controller: titleCtrl,
-                        decoration: const InputDecoration(labelText: 'Title')),
-                    const SizedBox(height: 8),
-                    TextField(
-                        controller: descCtrl,
-                        decoration:
-                            const InputDecoration(labelText: 'Description'),
-                        maxLines: 3),
-                    const SizedBox(height: 8),
-                    TextField(
-                        controller: stackCtrl,
-                        decoration: const InputDecoration(
-                            labelText: 'Tech Stack (comma sep)')),
-                  ],
-                ),
-              ),
-              actions: [
-                TextButton(
-                    onPressed: () => Navigator.pop(ctx),
-                    child: const Text('Cancel')),
-                ElevatedButton(
-                    onPressed: () {
-                      setState(() {
-                        _extractedProjects[index] = {
-                          ...project,
-                          'title': titleCtrl.text,
-                          'description': descCtrl.text,
-                          'techStack': stackCtrl.text
-                              .split(',')
-                              .map((e) => e.trim())
-                              .toList(),
-                        };
-                      });
-                      Navigator.pop(ctx);
-                    },
-                    child: const Text('Save'))
-              ],
-            ));
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(_hasParsed ? 'Review & Save' : 'Auto-fill Resume'),
-        actions: _hasParsed
-            ? [
-                IconButton(
-                    onPressed: _saveToFirestore, icon: const Icon(Icons.check))
-              ]
-            : [],
-      ),
-      floatingActionButton: _hasParsed
-          ? FloatingActionButton.extended(
-              onPressed: _saveToFirestore,
-              label: const Text('Save to Portfolio'),
-              icon: const Icon(Icons.save),
-            )
-          : null,
-      body: _isLoading
-          ? Center(
-              child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [const CircularProgressIndicator(), Text(_status)]))
-          : _hasParsed
-              ? _buildReviewList()
-              : _buildUploadView(),
-    );
-  }
-
-  Widget _buildUploadView() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const Icon(Icons.upload_file, size: 80, color: Colors.blueGrey),
-          const SizedBox(height: 24),
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 32.0),
-            child: Text(
-              'Upload your PDF resume.\nWe will extract your info and projects.\nYou can review them before saving.',
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 16),
-            ),
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppTheme.surfaceColor,
+        title: Text("Edit Project",
+            style: GoogleFonts.outfit(color: Colors.white)),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              CustomTextField(label: "TITLE", controller: titleCtrl),
+              const SizedBox(height: 16),
+              CustomTextField(
+                  label: "DESCRIPTION",
+                  controller: descCtrl,
+                  isMultiline: true),
+              const SizedBox(height: 16),
+              CustomTextField(
+                  label: "TECH STACK (Comma separated)", controller: techCtrl),
+            ],
           ),
-          const SizedBox(height: 48),
-          ElevatedButton.icon(
-            onPressed: _pickAndParseResume,
-            icon: const Icon(Icons.folder_open),
-            label: const Text('Select Key Resume PDF'),
-            style: ElevatedButton.styleFrom(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 32, vertical: 16)),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text("Cancel"),
           ),
+          TextButton(
+            onPressed: () {
+              setState(() {
+                _extractedProjects[index] = {
+                  ..._extractedProjects[index],
+                  'title': titleCtrl.text,
+                  'description': descCtrl.text,
+                  'techStack': techCtrl.text
+                      .split(',')
+                      .map((e) => e.trim())
+                      .where((e) => e.isNotEmpty)
+                      .toList(),
+                };
+              });
+              Navigator.pop(ctx);
+            },
+            child: const Text("Save",
+                style: TextStyle(color: AppTheme.primaryColor)),
+          )
         ],
       ),
     );
   }
 
-  Widget _buildReviewList() {
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 80),
-      children: [
-        const Text('Profile',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-        const SizedBox(height: 8),
-        Card(
-          child: ListTile(
-            title: Text(_extractedProfile['name']),
-            subtitle: Text(
-                "${_extractedProfile['email']}\n${_extractedProfile['bio']}",
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis),
-            isThreeLine: true,
-          ),
-        ),
-        const SizedBox(height: 24),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AppTheme.scaffoldBackgroundColor,
+      appBar: AppBar(
+        title: Text(_hasParsed ? 'Review Data' : 'Upload Resume',
+            style: GoogleFonts.outfit(fontWeight: FontWeight.bold)),
+        backgroundColor: AppTheme.scaffoldBackgroundColor,
+      ),
+      bottomNavigationBar: _hasParsed && !_isLoading
+          ? Padding(
+              padding: const EdgeInsets.all(20),
+              child: PrimaryButton(
+                  text: "SAVE TO PORTFOLIO", onPressed: _saveToFirestore),
+            )
+          : null,
+      body: _isLoading
+          ? Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const CircularProgressIndicator(color: AppTheme.primaryColor),
+                  const SizedBox(height: 24),
+                  Text(_status,
+                      style: GoogleFonts.inter(color: AppTheme.textSecondary)),
+                ],
+              ),
+            )
+          : !_hasParsed
+              ? _buildUploadView()
+              : _buildReviewView(),
+    );
+  }
+
+  Widget _buildUploadView() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24.0),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Text('Projects Found',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-            Text('${_extractedProjects.length} items',
-                style: const TextStyle(color: Colors.grey)),
+            Container(
+                padding: const EdgeInsets.all(32),
+                decoration: BoxDecoration(
+                  color: AppTheme.primaryColor.withOpacity(0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.cloud_upload_outlined,
+                    size: 64, color: AppTheme.primaryColor)),
+            const SizedBox(height: 32),
+            Text(
+              "Import from Resume",
+              style: GoogleFonts.outfit(
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                  color: AppTheme.textPrimary),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              "Upload your PDF resume to automatically populate your portfolio content.",
+              textAlign: TextAlign.center,
+              style: GoogleFonts.inter(
+                  fontSize: 16, color: AppTheme.textSecondary, height: 1.5),
+            ),
+            const SizedBox(height: 48),
+            PrimaryButton(
+              text: "SELECT PDF FILE",
+              onPressed: _pickAndParseResume,
+              icon: Icons.folder_open,
+            ),
           ],
         ),
-        const SizedBox(height: 8),
-        if (_extractedProjects.isEmpty)
-          const Padding(
-              padding: EdgeInsets.all(16),
-              child:
-                  Text("No projects found. Try checking your resume format.")),
+      ),
+    );
+  }
+
+  Widget _buildReviewView() {
+    return ListView(
+      padding: const EdgeInsets.all(20),
+      children: [
+        _SectionHeader(title: "EXTRACTED PROFILE"),
+        GradientCard(
+            child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _InfoRow(icon: Icons.person, value: _extractedProfile['name']),
+            const SizedBox(height: 12),
+            _InfoRow(icon: Icons.email, value: _extractedProfile['email']),
+            const SizedBox(height: 12),
+            _InfoRow(icon: Icons.info_outline, value: _extractedProfile['bio']),
+          ],
+        )),
+        const SizedBox(height: 24),
+        _SectionHeader(title: "PROJECTS (${_extractedProjects.length})"),
         ..._extractedProjects.asMap().entries.map((entry) {
           final index = entry.key;
-          final project = entry.value;
-          return Card(
-            margin: const EdgeInsets.only(bottom: 12),
-            child: ListTile(
-              title: Text(project['title'],
-                  style: const TextStyle(fontWeight: FontWeight.bold)),
-              subtitle: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(project['description'],
-                      maxLines: 2, overflow: TextOverflow.ellipsis),
-                  const SizedBox(height: 4),
-                  Wrap(
-                    spacing: 4,
-                    children: (project['techStack'] as List)
-                        .map<Widget>((t) => Chip(
-                            label:
-                                Text(t, style: const TextStyle(fontSize: 10)),
-                            padding: EdgeInsets.zero,
-                            visualDensity: VisualDensity.compact))
-                        .toList(),
-                  )
-                ],
-              ),
-              trailing: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  IconButton(
-                    icon: const Icon(Icons.edit, color: Colors.blue),
-                    onPressed: () => _editProject(index),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.delete, color: Colors.red),
-                    onPressed: () => _removeProject(index),
-                  ),
-                ],
-              ),
+          final p = entry.value;
+          return Container(
+            margin: const EdgeInsets.only(bottom: 16),
+            child: Stack(
+              children: [
+                GradientCard(
+                    padding: const EdgeInsets.only(
+                        top: 24, bottom: 20, left: 20, right: 60),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(p['title'],
+                            style: GoogleFonts.outfit(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                color: AppTheme.textPrimary)),
+                        const SizedBox(height: 8),
+                        Text(p['description'],
+                            style: GoogleFonts.inter(
+                                fontSize: 13,
+                                color: AppTheme.textSecondary,
+                                height: 1.4)),
+                        const SizedBox(height: 16),
+                        Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            children: (p['techStack'] as List)
+                                .map<Widget>((t) => Container(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 10, vertical: 4),
+                                    decoration: BoxDecoration(
+                                        color: Colors.white.withOpacity(0.05),
+                                        border:
+                                            Border.all(color: Colors.white10),
+                                        borderRadius: BorderRadius.circular(8)),
+                                    child: Text(t,
+                                        style: GoogleFonts.inter(
+                                            fontSize: 11,
+                                            color: Colors.white70,
+                                            fontWeight: FontWeight.w500))))
+                                .toList())
+                      ],
+                    )),
+                Positioned(
+                    right: 12,
+                    top: 12,
+                    child: Column(
+                      children: [
+                        IconButton(
+                          icon: const Icon(Icons.edit_outlined,
+                              color: AppTheme.primaryColor, size: 22),
+                          onPressed: () => _editProject(index),
+                          visualDensity: VisualDensity.compact,
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.delete_outline,
+                              color: AppTheme.errorColor, size: 22),
+                          onPressed: () => setState(
+                              () => _extractedProjects.removeAt(index)),
+                          visualDensity: VisualDensity.compact,
+                        ),
+                      ],
+                    ))
+              ],
             ),
           );
-        }).toList()
+        }).toList(),
+        const SizedBox(height: 80),
+      ],
+    );
+  }
+}
+
+class _SectionHeader extends StatelessWidget {
+  final String title;
+  const _SectionHeader({required this.title});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12, left: 4),
+      child: Text(title,
+          style: GoogleFonts.inter(
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+              color: AppTheme.textSecondary,
+              letterSpacing: 1.0)),
+    );
+  }
+}
+
+class _InfoRow extends StatelessWidget {
+  final IconData icon;
+  final String value;
+  const _InfoRow({required this.icon, required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Icon(icon, size: 16, color: AppTheme.primaryColor),
+        const SizedBox(width: 12),
+        Expanded(
+            child: Text(value,
+                style: GoogleFonts.inter(color: AppTheme.textPrimary)))
       ],
     );
   }

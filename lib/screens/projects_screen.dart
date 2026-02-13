@@ -1,6 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:google_fonts/google_fonts.dart';
 import '../services/firestore_service.dart';
+import '../services/cloudinary_service.dart';
+import '../theme/app_theme.dart';
+import '../widgets/custom_text_field.dart';
+import '../widgets/primary_button.dart';
+import '../widgets/gradient_card.dart';
 
 class ProjectsScreen extends StatelessWidget {
   const ProjectsScreen({super.key});
@@ -10,58 +16,227 @@ class ProjectsScreen extends StatelessWidget {
     final service = FirestoreService();
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Projects')),
-      body: StreamBuilder<QuerySnapshot>(
-        stream: service.streamProjects(),
-        builder: (context, snapshot) {
-          if (snapshot.hasError) {
-            return Center(child: Text('Error: ${snapshot.error}'));
-          }
-          if (!snapshot.hasData) {
-            return const Center(child: CircularProgressIndicator());
-          }
-
-          final docs = snapshot.data!.docs;
-          if (docs.isEmpty) return const Center(child: Text('No projects yet'));
-
-          return ListView.builder(
-            itemCount: docs.length,
-            itemBuilder: (context, index) {
-              final doc = docs[index];
-              final data = doc.data() as Map<String, dynamic>;
-              return ListTile(
-                title: Text(data['title'] ?? 'Untitled'),
-                subtitle: Text(
-                  data['description'] ?? '',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+      backgroundColor: AppTheme.scaffoldBackgroundColor,
+      body: CustomScrollView(
+        slivers: [
+          SliverAppBar.large(
+            title: Text('Projects',
+                style: GoogleFonts.outfit(fontWeight: FontWeight.bold)),
+            backgroundColor: AppTheme.scaffoldBackgroundColor,
+            surfaceTintColor: Colors.transparent,
+            actions: [
+              IconButton(
+                icon: const Icon(Icons.add_circle_outline,
+                    size: 32, color: AppTheme.primaryColor),
+                onPressed: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                      builder: (_) => const ProjectEditorScreen()),
                 ),
-                trailing: IconButton(
-                  icon: const Icon(Icons.delete, color: Colors.red),
-                  onPressed: () => service.deleteProject(doc.id),
-                ),
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) =>
-                          ProjectEditorScreen(docId: doc.id, initialData: data),
+              ),
+              const SizedBox(width: 16),
+            ],
+          ),
+          StreamBuilder<QuerySnapshot>(
+            stream: service.streamProjects(),
+            builder: (context, snapshot) {
+              if (snapshot.hasError) {
+                return SliverFillRemaining(
+                  child: Center(
+                      child: Text('Error: ${snapshot.error}',
+                          style: const TextStyle(color: AppTheme.errorColor))),
+                );
+              }
+              if (!snapshot.hasData) {
+                return const SliverFillRemaining(
+                  child: Center(
+                      child: CircularProgressIndicator(
+                          color: AppTheme.primaryColor)),
+                );
+              }
+
+              final docs = snapshot.data!.docs;
+              if (docs.isEmpty) {
+                return SliverFillRemaining(
+                  child: Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.folder_open,
+                            size: 64,
+                            color: AppTheme.textSecondary.withOpacity(0.5)),
+                        const SizedBox(height: 16),
+                        Text('No projects found',
+                            style: GoogleFonts.inter(
+                                fontSize: 18, color: AppTheme.textSecondary)),
+                      ],
                     ),
-                  );
-                },
+                  ),
+                );
+              }
+
+              return SliverPadding(
+                padding: const EdgeInsets.all(16),
+                sliver: SliverList(
+                  delegate: SliverChildBuilderDelegate(
+                    (context, index) {
+                      final doc = docs[index];
+                      final data = doc.data() as Map<String, dynamic>;
+                      return _ProjectCard(
+                        docId: doc.id,
+                        data: data,
+                        onEdit: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => ProjectEditorScreen(
+                                docId: doc.id, initialData: data),
+                          ),
+                        ),
+                        onDelete: () =>
+                            _confirmDelete(context, service, doc.id),
+                      );
+                    },
+                    childCount: docs.length,
+                  ),
+                ),
               );
             },
-          );
-        },
+          ),
+        ],
       ),
-      floatingActionButton: FloatingActionButton(
-        child: const Icon(Icons.add),
-        onPressed: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (_) => const ProjectEditorScreen()),
-          );
-        },
+    );
+  }
+
+  void _confirmDelete(
+      BuildContext context, FirestoreService service, String docId) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: AppTheme.surfaceColor,
+        title: const Text('Delete Project?'),
+        content: const Text('This action cannot be undone.'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel')),
+          TextButton(
+            onPressed: () {
+              service.deleteProject(docId);
+              Navigator.pop(context);
+            },
+            child: const Text('Delete',
+                style: TextStyle(color: AppTheme.errorColor)),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ProjectCard extends StatelessWidget {
+  final String docId;
+  final Map<String, dynamic> data;
+  final VoidCallback onEdit;
+  final VoidCallback onDelete;
+
+  const _ProjectCard(
+      {required this.docId,
+      required this.data,
+      required this.onEdit,
+      required this.onDelete});
+
+  @override
+  Widget build(BuildContext context) {
+    return GradientCard(
+      padding: EdgeInsets.zero,
+      onTap: onEdit,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (data['imageUrl'] != null &&
+              data['imageUrl'].toString().startsWith('http'))
+            Hero(
+              tag: 'project_image_$docId',
+              child: ClipRRect(
+                borderRadius:
+                    const BorderRadius.vertical(top: Radius.circular(24)),
+                child: Image.network(
+                  data['imageUrl'],
+                  height: 180,
+                  width: double.infinity,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) => Container(
+                    height: 180,
+                    color: Colors.white10,
+                    alignment: Alignment.center,
+                    child: const Icon(Icons.broken_image,
+                        size: 48, color: Colors.white24),
+                  ),
+                ),
+              ),
+            ),
+          Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        data['title'] ?? 'Untitled',
+                        style: GoogleFonts.outfit(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                            color: AppTheme.textPrimary),
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.delete_outline,
+                          color: AppTheme.errorColor),
+                      onPressed: onDelete,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  data['description'] ?? 'No description',
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.inter(
+                      fontSize: 14, color: AppTheme.textSecondary),
+                ),
+                const SizedBox(height: 16),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: (data['techStack'] as List<dynamic>? ?? [])
+                      .take(3)
+                      .map((tag) {
+                    return Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: AppTheme.primaryColor.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                            color: AppTheme.primaryColor.withOpacity(0.2)),
+                      ),
+                      child: Text(
+                        tag.toString(),
+                        style: GoogleFonts.inter(
+                            fontSize: 12,
+                            color: AppTheme.primaryColor,
+                            fontWeight: FontWeight.w500),
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -85,6 +260,8 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
   final _imageUrlController = TextEditingController();
   final _liveLinkController = TextEditingController();
   final _githubLinkController = TextEditingController();
+  final CloudinaryService _cloudinaryService = CloudinaryService();
+  bool _isSaving = false;
 
   @override
   void initState() {
@@ -103,6 +280,7 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
 
   Future<void> _save() async {
     if (_formKey.currentState!.validate()) {
+      setState(() => _isSaving = true);
       final data = {
         'title': _titleController.text,
         'description': _descController.text,
@@ -124,65 +302,124 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
         }
         if (mounted) Navigator.pop(context);
       } catch (e) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Error: $e')));
+        if (mounted)
+          ScaffoldMessenger.of(context)
+              .showSnackBar(SnackBar(content: Text('Error: $e')));
+      } finally {
+        if (mounted) setState(() => _isSaving = false);
       }
+    }
+  }
+
+  Future<void> _pickImage() async {
+    final url = await _cloudinaryService.pickAndUploadImage();
+    if (url != null) {
+      setState(() {
+        _imageUrlController.text = url;
+      });
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: AppTheme.scaffoldBackgroundColor,
       appBar: AppBar(
         title: Text(widget.docId == null ? 'Add Project' : 'Edit Project'),
+        backgroundColor: AppTheme.scaffoldBackgroundColor,
       ),
       body: Form(
         key: _formKey,
         child: ListView(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(20),
           children: [
-            TextFormField(
-              controller: _titleController,
-              decoration: const InputDecoration(labelText: 'Title'),
-              validator: (v) => v!.isEmpty ? 'Required' : null,
-            ),
-            TextFormField(
-              controller: _descController,
-              decoration: const InputDecoration(labelText: 'Description'),
-              maxLines: 3,
-            ),
-            TextFormField(
-              controller: _techStackController,
-              decoration: const InputDecoration(
-                labelText: 'Tech Stack (comma separated)',
-              ),
-            ),
-            TextFormField(
-              controller: _imageUrlController,
-              decoration: const InputDecoration(
-                labelText: 'Image URL',
-                hintText: 'https://example.com/image.png',
-              ),
-              validator: (value) {
-                if (value == null || value.isEmpty) return null;
-                if (!value.startsWith('http')) return 'Must be a valid URL';
-                if (value.contains('google.com/search')) {
-                  return 'This is a Google Search link, not an image link.\nRight-click image -> Copy Image Address';
-                }
-                return null;
-              },
-            ),
-            TextFormField(
-              controller: _liveLinkController,
-              decoration: const InputDecoration(labelText: 'Live Link'),
-            ),
-            TextFormField(
-              controller: _githubLinkController,
-              decoration: const InputDecoration(labelText: 'GitHub Link'),
-            ),
+            CustomTextField(
+                label: "PROJECT TITLE",
+                controller: _titleController,
+                hint: "E.g. E-Commerce App"),
             const SizedBox(height: 20),
-            ElevatedButton(onPressed: _save, child: const Text('Save')),
+            CustomTextField(
+                label: "DESCRIPTION",
+                controller: _descController,
+                isMultiline: true,
+                hint: "Project details..."),
+            const SizedBox(height: 20),
+            CustomTextField(
+                label: "TECH STACK",
+                controller: _techStackController,
+                hint: "Flutter, Firebase, React..."),
+            const SizedBox(height: 20),
+
+            // Image Upload Section
+            Text("PROJECT COVER",
+                style: GoogleFonts.inter(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: AppTheme.textSecondary)),
+            const SizedBox(height: 8),
+            Hero(
+              tag: widget.docId != null
+                  ? 'project_image_${widget.docId}'
+                  : 'new_project_image',
+              child: GestureDetector(
+                onTap: _pickImage,
+                child: Container(
+                  height: 150,
+                  width: double.infinity,
+                  decoration: BoxDecoration(
+                      color: AppTheme.inputFillColor,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: Colors.white10),
+                      image: _imageUrlController.text.isNotEmpty
+                          ? DecorationImage(
+                              image: NetworkImage(_imageUrlController.text),
+                              fit: BoxFit.cover)
+                          : null),
+                  child: _imageUrlController.text.isEmpty
+                      ? const Center(
+                          child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                              Icon(Icons.add_photo_alternate_outlined,
+                                  size: 32, color: AppTheme.primaryColor),
+                              SizedBox(height: 8),
+                              Text("Tap to upload image",
+                                  style:
+                                      TextStyle(color: AppTheme.textSecondary))
+                            ]))
+                      : null,
+                ),
+              ),
+            ),
+            if (_imageUrlController.text.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: TextButton(
+                    onPressed: () =>
+                        setState(() => _imageUrlController.clear()),
+                    child: const Text("Remove Image",
+                        style: TextStyle(color: AppTheme.errorColor))),
+              ),
+
+            const SizedBox(height: 20),
+            CustomTextField(
+                label: "LIVE LINK",
+                controller: _liveLinkController,
+                hint: "https://myapp.com",
+                prefixIcon: Icons.link),
+            const SizedBox(height: 20),
+            CustomTextField(
+                label: "GITHUB LINK",
+                controller: _githubLinkController,
+                hint: "https://github.com/...",
+                prefixIcon: Icons.code),
+
+            const SizedBox(height: 40),
+            PrimaryButton(
+              text: "SAVE PROJECT",
+              onPressed: _save,
+              isLoading: _isSaving,
+            ),
           ],
         ),
       ),

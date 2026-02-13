@@ -1,9 +1,13 @@
-import 'package:flutter/material.dart';
-import 'package:portfolio_mobile/services/cloudinary_service.dart';
-import '../services/firestore_service.dart';
 import 'dart:convert';
+import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
+import '../services/cloudinary_service.dart';
+import '../services/firestore_service.dart';
+import '../theme/app_theme.dart';
+import '../widgets/custom_text_field.dart';
+import '../widgets/primary_button.dart';
 
-enum DataType { string, stringList, json, image }
+enum DataType { string, stringList, objectList, json, image }
 
 class FieldData {
   TextEditingController controller;
@@ -29,6 +33,7 @@ class _ContentEditorScreenState extends State<ContentEditorScreen> {
   final _formKey = GlobalKey<FormState>();
   final Map<String, FieldData> _fields = {};
   bool _isLoading = true;
+  bool _isSaving = false;
   final CloudinaryService _cloudinaryService = CloudinaryService();
 
   @override
@@ -47,12 +52,8 @@ class _ContentEditorScreenState extends State<ContentEditorScreen> {
         fetchedData = snapshot.data()!;
       }
 
-      // Always get default data to ensure all fields are present
       final defaultData = _getDefaultData(widget.docId);
-
-      // Merge fetched data into default data (fetched overrides default)
       final data = {...defaultData, ...fetchedData};
-
       final sortedKeys = data.keys.toList()..sort();
 
       for (var key in sortedKeys) {
@@ -68,15 +69,35 @@ class _ContentEditorScreenState extends State<ContentEditorScreen> {
             type = DataType.string;
           }
         } else if (value is List) {
-          if (value.isEmpty || (value.isNotEmpty && value.first is String)) {
+          if (value.isEmpty) {
+            // Try to infer type from default data if empty
+            final defaultVal = defaultData[key];
+            if (defaultVal is List &&
+                defaultVal.isNotEmpty &&
+                defaultVal.first is Map) {
+              type = DataType.objectList;
+              text = const JsonEncoder.withIndent('  ').convert(value);
+            } else if (defaultVal is List &&
+                defaultVal.isNotEmpty &&
+                defaultVal.first is String) {
+              type = DataType.stringList;
+              text = '';
+            } else {
+              // Fallback
+              text = const JsonEncoder.withIndent('  ').convert(value);
+              type = DataType.json;
+            }
+          } else if (value.first is String) {
             text = (value).join(', ');
             type = DataType.stringList;
+          } else if (value.first is Map) {
+            text = const JsonEncoder.withIndent('  ').convert(value);
+            type = DataType.objectList;
           } else {
             text = const JsonEncoder.withIndent('  ').convert(value);
             type = DataType.json;
           }
         } else {
-          // Handle null or other types gracefully
           if (value == null) {
             text = '';
           } else {
@@ -93,6 +114,7 @@ class _ContentEditorScreenState extends State<ContentEditorScreen> {
     }
   }
 
+  // Same logic as before for default data
   Map<String, dynamic> _getDefaultData(String docId) {
     switch (docId) {
       case 'hero':
@@ -102,14 +124,16 @@ class _ContentEditorScreenState extends State<ContentEditorScreen> {
           'badge': 'Badge Text',
           'cta': 'Click Me',
           'secondaryCta': 'Secondary Action',
-          'imageUrl': '' // Add image URL field
+          'imageUrl': ''
         };
       case 'about':
         return {
           'title': 'About Me',
           'biography': 'Write your bio here...',
           'location': 'City, Country',
-          'education': [], // JSON
+          'education': [
+            {"degree": "Degree", "institution": "University", "year": "2024"}
+          ],
           'interests': []
         };
       case 'contact':
@@ -128,14 +152,13 @@ class _ContentEditorScreenState extends State<ContentEditorScreen> {
           'backendTitle': 'Backend',
           'toolsTitle': 'Tools',
           'frameworksTitle': 'Frameworks',
-          // Use example data to ensure they are detected as JSON (list of objects) and not StringList
           'frontend': [
             {'name': 'React', 'level': 90}
           ],
-          'mobile': ['Flutter', 'React Native'], // String List
-          'backend': ['Node.js', 'Firebase'], // String List
-          'tools': ['Git', 'VS Code'], // String List
-          'frameworks': ['Next.js'] // String List
+          'mobile': ['Flutter', 'React Native'],
+          'backend': ['Node.js', 'Firebase'],
+          'tools': ['Git', 'VS Code'],
+          'frameworks': ['Next.js']
         };
       case 'expertise':
         return {
@@ -153,7 +176,13 @@ class _ContentEditorScreenState extends State<ContentEditorScreen> {
           ]
         };
       case 'navbar':
-        return {'logoText': 'S', 'ctaText': 'Hire Me', 'items': []};
+        return {
+          'logoText': 'S',
+          'ctaText': 'Hire Me',
+          'items': [
+            {'label': 'Home', 'href': '/'}
+          ]
+        };
       default:
         return {'title': 'New Section'};
     }
@@ -161,6 +190,7 @@ class _ContentEditorScreenState extends State<ContentEditorScreen> {
 
   Future<void> _save() async {
     if (_formKey.currentState!.validate()) {
+      setState(() => _isSaving = true);
       final Map<String, dynamic> data = {};
       bool hasError = false;
 
@@ -179,6 +209,7 @@ class _ContentEditorScreenState extends State<ContentEditorScreen> {
                   .toList();
               break;
             case DataType.json:
+            case DataType.objectList:
               data[key] = jsonDecode(field.controller.text);
               break;
           }
@@ -190,22 +221,31 @@ class _ContentEditorScreenState extends State<ContentEditorScreen> {
         }
       });
 
-      if (hasError) return;
+      if (hasError) {
+        setState(() => _isSaving = false);
+        return;
+      }
 
       try {
         await FirestoreService().updateContent(widget.docId, data);
         if (mounted) {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(const SnackBar(content: Text('Saved successfully')));
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+                content: Text('Saved successfully'),
+                backgroundColor: AppTheme.primaryColor),
+          );
           Navigator.pop(context);
         }
       } catch (e) {
         if (mounted) {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(SnackBar(content: Text('Error saving: $e')));
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+                content: Text('Error saving: $e'),
+                backgroundColor: AppTheme.errorColor),
+          );
         }
+      } finally {
+        if (mounted) setState(() => _isSaving = false);
       }
     }
   }
@@ -218,12 +258,8 @@ class _ContentEditorScreenState extends State<ContentEditorScreen> {
       });
     } else {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Upload failed. Check console for details.'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('Image upload failed')));
       }
     }
   }
@@ -231,81 +267,310 @@ class _ContentEditorScreenState extends State<ContentEditorScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text(widget.title),
-        actions: [IconButton(icon: const Icon(Icons.save), onPressed: _save)],
-      ),
+      backgroundColor: AppTheme.scaffoldBackgroundColor,
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
+          ? const Center(
+              child: CircularProgressIndicator(color: AppTheme.primaryColor))
           : Form(
               key: _formKey,
-              child: ListView(
-                padding: const EdgeInsets.all(16),
-                children: _fields.entries.map((entry) {
-                  return Padding(
-                    padding: const EdgeInsets.only(bottom: 16.0),
-                    child: _buildField(entry.key, entry.value),
-                  );
-                }).toList(),
+              child: CustomScrollView(
+                slivers: [
+                  SliverAppBar.large(
+                    title: Text(widget.title,
+                        style: GoogleFonts.outfit(fontWeight: FontWeight.bold)),
+                    backgroundColor: AppTheme.scaffoldBackgroundColor,
+                    surfaceTintColor: Colors.transparent,
+                    pinned: true,
+                    actions: [
+                      Padding(
+                        padding: const EdgeInsets.only(right: 16),
+                        child: _isSaving
+                            ? const Center(
+                                child: SizedBox(
+                                  width: 24,
+                                  height: 24,
+                                  child: CircularProgressIndicator(
+                                    color: AppTheme.primaryColor,
+                                    strokeWidth: 2,
+                                  ),
+                                ),
+                              )
+                            : IconButton(
+                                icon: const Icon(Icons.check_circle,
+                                    color: AppTheme.primaryColor, size: 32),
+                                onPressed: _save,
+                              ),
+                      ),
+                    ],
+                  ),
+                  SliverPadding(
+                    padding: const EdgeInsets.all(20),
+                    sliver: SliverList(
+                      delegate: SliverChildBuilderDelegate(
+                        (context, index) {
+                          final entry = _fields.entries.toList()[index];
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 24),
+                            child: _buildField(entry.key, entry.value),
+                          );
+                        },
+                        childCount: _fields.length,
+                      ),
+                    ),
+                  ),
+                  const SliverToBoxAdapter(child: SizedBox(height: 80)),
+                ],
               ),
+            ),
+      floatingActionButton: _isSaving
+          ? null
+          : FloatingActionButton.extended(
+              onPressed: _save,
+              label: Text("Save Changes",
+                  style: GoogleFonts.outfit(fontWeight: FontWeight.bold)),
+              icon: const Icon(Icons.save),
+              backgroundColor: AppTheme.primaryColor,
             ),
     );
   }
 
   Widget _buildField(String key, FieldData field) {
-    int maxLines = 1;
-    String? hint;
-
-    if (field.type == DataType.json) {
-      maxLines = 10;
-      hint = 'Enter valid JSON';
-    } else if (field.type == DataType.string &&
-        field.controller.text.length > 50) {
-      maxLines = 3;
-    } else if (field.type == DataType.stringList) {
-      maxLines = 2;
-      hint = 'Comma separated values';
+    if (field.type == DataType.objectList) {
+      return _buildObjectListEditor(key, field);
     }
 
-    Widget inputField = TextFormField(
-      controller: field.controller,
-      decoration: InputDecoration(
-        labelText: key,
-        hintText: hint,
-        border: const OutlineInputBorder(),
-        alignLabelWithHint: true,
-      ),
-      maxLines: maxLines,
-      validator: (value) {
-        if (field.type == DataType.json) {
-          try {
-            jsonDecode(value!);
-          } catch (e) {
-            return 'Invalid JSON';
-          }
-        }
-        return null;
-      },
-    );
+    String hint = '';
+    bool isMultiline = false;
+
+    if (field.type == DataType.json) {
+      isMultiline = true;
+      hint = 'Enter valid JSON structure';
+    } else if (field.type == DataType.string &&
+        field.controller.text.length > 50) {
+      isMultiline = true;
+    } else if (field.type == DataType.stringList) {
+      isMultiline = true;
+      hint = 'Values separated by commas';
+    }
 
     if (field.type == DataType.image) {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          inputField,
-          const SizedBox(height: 8),
-          if (field.controller.text.isNotEmpty)
-            Image.network(field.controller.text,
-                height: 100,
-                errorBuilder: (_, __, ___) => const Text("Invalid Image URL")),
-          TextButton.icon(
-              onPressed: () => _pickImage(field),
-              icon: const Icon(Icons.cloud_upload),
-              label: const Text("Upload New Image"))
+          CustomTextField(
+            label: key.toUpperCase(),
+            controller: field.controller,
+            hint: "Image URL",
+            prefixIcon: Icons.link,
+          ),
+          const SizedBox(height: 12),
+          Container(
+            height: 200,
+            width: double.infinity,
+            decoration: BoxDecoration(
+              color: AppTheme.surfaceColor,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: Colors.white10),
+              image: field.controller.text.isNotEmpty
+                  ? DecorationImage(
+                      image: NetworkImage(field.controller.text),
+                      fit: BoxFit.cover,
+                      onError: (_, __) => const Icon(
+                          Icons.broken_image), // Placeholder handling
+                    )
+                  : null,
+            ),
+            child: field.controller.text.isEmpty
+                ? const Center(
+                    child: Icon(Icons.image, size: 48, color: Colors.white24))
+                : null,
+          ),
+          const SizedBox(height: 12),
+          PrimaryButton(
+            text: "Upload New Image",
+            onPressed: () => _pickImage(field),
+            icon: Icons.cloud_upload_outlined,
+            backgroundColor: AppTheme.surfaceColor,
+          ),
         ],
       );
     }
 
-    return inputField;
+    return CustomTextField(
+      label: key.toUpperCase(),
+      controller: field.controller,
+      isMultiline: isMultiline,
+      hint: hint,
+      validator: (value) {
+        if (field.type == DataType.json) {
+          try {
+            if (value != null && value.isNotEmpty) {
+              jsonDecode(value);
+            }
+          } catch (e) {
+            return 'Invalid JSON format';
+          }
+        }
+        return null;
+      },
+    );
+  }
+
+  Widget _buildObjectListEditor(String key, FieldData field) {
+    List<dynamic> items = [];
+    try {
+      items = jsonDecode(field.controller.text);
+    } catch (e) {/* ignore */}
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          key.toUpperCase(),
+          style: GoogleFonts.inter(
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+            color: AppTheme.textSecondary,
+          ),
+        ),
+        const SizedBox(height: 12),
+        ...items.asMap().entries.map((entry) {
+          final index = entry.key;
+          final item = entry.value as Map<String, dynamic>;
+          final title = item.values.firstOrNull?.toString() ?? 'Item $index';
+          final subtitle =
+              item.values.length > 1 ? item.values.elementAt(1).toString() : '';
+
+          return Container(
+            margin: const EdgeInsets.only(bottom: 12),
+            decoration: BoxDecoration(
+                color: AppTheme.inputFillColor,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.white10)),
+            child: ListTile(
+              title: Text(title,
+                  style: const TextStyle(
+                      color: Colors.white, fontWeight: FontWeight.bold)),
+              subtitle: subtitle.isNotEmpty
+                  ? Text(subtitle,
+                      style: const TextStyle(color: Colors.white70),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis)
+                  : null,
+              trailing: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.edit, color: AppTheme.primaryColor),
+                    onPressed: () => _editListItem(key, items, index, field),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.delete, color: AppTheme.errorColor),
+                    onPressed: () {
+                      setState(() {
+                        items.removeAt(index);
+                        field.controller.text = jsonEncode(items);
+                      });
+                    },
+                  ),
+                ],
+              ),
+            ),
+          );
+        }),
+        PrimaryButton(
+          text: "Add ${key.toUpperCase()}",
+          onPressed: () => _editListItem(key, items, -1, field),
+          icon: Icons.add,
+          backgroundColor: AppTheme.surfaceColor,
+        )
+      ],
+    );
+  }
+
+  void _editListItem(
+      String key, List<dynamic> items, int index, FieldData field) {
+    final isNew = index == -1;
+    Map<String, dynamic> itemData = isNew
+        ? _getTemplateForItem(key)
+        : Map<String, dynamic>.from(items[index]);
+
+    final controllers = <String, TextEditingController>{};
+    itemData.forEach((k, v) {
+      controllers[k] = TextEditingController(text: v.toString());
+    });
+
+    showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+              backgroundColor: AppTheme.surfaceColor,
+              title: Text(isNew ? "Add Item" : "Edit Item",
+                  style: GoogleFonts.outfit(color: Colors.white)),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: itemData.keys.map((k) {
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 16),
+                      child: CustomTextField(
+                          label: k.toUpperCase(), controller: controllers[k]!),
+                    );
+                  }).toList(),
+                ),
+              ),
+              actions: [
+                TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text("Cancel")),
+                TextButton(
+                    onPressed: () {
+                      final newItem = <String, dynamic>{};
+                      controllers.forEach((k, v) {
+                        // Try to keep types if possible, essentially for numbers
+                        if (num.tryParse(v.text) != null &&
+                            !v.text.contains(',')) {
+                          // Very basic heuristic, might need refinement if strings look like numbers
+                          // For now, let's keep everything as strings if it was string, to be safe.
+                          // Actually, skills level is number.
+                          if (key == 'frontend' ||
+                              key == 'backend' ||
+                              key == 'mobile' ||
+                              key == 'frameworks') {
+                            if (k == 'level') {
+                              newItem[k] = num.tryParse(v.text) ?? v.text;
+                              return;
+                            }
+                          }
+                        }
+                        newItem[k] = v.text;
+                      });
+
+                      setState(() {
+                        if (isNew) {
+                          items.add(newItem);
+                        } else {
+                          items[index] = newItem;
+                        }
+                        field.controller.text = jsonEncode(items);
+                      });
+                      Navigator.pop(context);
+                    },
+                    child: const Text("Save",
+                        style: TextStyle(color: AppTheme.primaryColor)))
+              ],
+            ));
+  }
+
+  Map<String, dynamic> _getTemplateForItem(String key) {
+    // Provide templates for known keys to ensure structure
+    if (key == 'education')
+      return {"degree": "", "institution": "", "year": ""};
+    if (key == 'stats') return {"label": "", "value": ""};
+    if (key == 'services') return {"id": "", "title": "", "description": ""};
+    if (['frontend', 'backend', 'mobile', 'frameworks', 'tools'].contains(key))
+      return {"name": "", "level": "90"};
+    if (key == 'items') return {"label": "", "href": ""};
+
+    return {"title": "", "description": ""}; // Generic fallback
   }
 }
