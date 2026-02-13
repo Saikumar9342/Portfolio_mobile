@@ -217,7 +217,7 @@ class _ResumeUploadScreenState extends State<ResumeUploadScreen> {
 
       // Clean up description formatting
       description = description
-          .replaceAll(RegExp(r'^\s*[-·•]\s*', multiLine: true), '')
+          .replaceAll(RegExp(r'^\s*[-*]\s*', multiLine: true), '')
           .replaceAll(RegExp(r'\n+'), ' ')
           .trim();
 

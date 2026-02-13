@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../theme/app_theme.dart';
 import '../widgets/gradient_card.dart';
@@ -30,6 +31,11 @@ class HomeScreen extends StatelessWidget {
                 icon: const Icon(Icons.refresh, color: AppTheme.primaryColor),
                 onPressed: () => _seedDatabase(context),
                 tooltip: 'Reset Database',
+              ),
+              IconButton(
+                icon: const Icon(Icons.logout, color: AppTheme.primaryColor),
+                onPressed: () => FirebaseAuth.instance.signOut(),
+                tooltip: 'Sign Out',
               ),
             ],
           ),
