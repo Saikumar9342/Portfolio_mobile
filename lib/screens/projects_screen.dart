@@ -9,13 +9,18 @@ import '../widgets/primary_button.dart';
 import '../widgets/gradient_card.dart';
 import '../widgets/action_dialog.dart';
 
-class ProjectsScreen extends StatelessWidget {
+class ProjectsScreen extends StatefulWidget {
   const ProjectsScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    final service = FirestoreService();
+  State<ProjectsScreen> createState() => _ProjectsScreenState();
+}
 
+class _ProjectsScreenState extends State<ProjectsScreen> {
+  final FirestoreService _service = FirestoreService();
+
+  @override
+  Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppTheme.scaffoldBackgroundColor,
       body: CustomScrollView(
@@ -39,14 +44,10 @@ class ProjectsScreen extends StatelessWidget {
             ],
           ),
           StreamBuilder<QuerySnapshot>(
-            stream: service.streamProjects(),
+            stream: _service.streamProjects(),
             builder: (context, snapshot) {
               if (snapshot.hasError) {
-                return SliverFillRemaining(
-                  child: Center(
-                      child: Text('Error: ${snapshot.error}',
-                          style: const TextStyle(color: AppTheme.errorColor))),
-                );
+                return _buildErrorView(snapshot.error);
               }
               if (!snapshot.hasData) {
                 return const SliverFillRemaining(
@@ -58,49 +59,10 @@ class ProjectsScreen extends StatelessWidget {
 
               final docs = snapshot.data!.docs;
               if (docs.isEmpty) {
-                return SliverFillRemaining(
-                  child: Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.folder_open,
-                            size: 64,
-                            color: AppTheme.textSecondary.withOpacity(0.5)),
-                        const SizedBox(height: 16),
-                        Text('No projects found',
-                            style: GoogleFonts.inter(
-                                fontSize: 18, color: AppTheme.textSecondary)),
-                      ],
-                    ),
-                  ),
-                );
+                return _buildEmptyView();
               }
 
-              return SliverPadding(
-                padding: const EdgeInsets.all(16),
-                sliver: SliverList(
-                  delegate: SliverChildBuilderDelegate(
-                    (context, index) {
-                      final doc = docs[index];
-                      final data = doc.data() as Map<String, dynamic>;
-                      return _ProjectCard(
-                        docId: doc.id,
-                        data: data,
-                        onEdit: () => Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => ProjectEditorScreen(
-                                docId: doc.id, initialData: data),
-                          ),
-                        ),
-                        onDelete: () =>
-                            _confirmDelete(context, service, doc.id),
-                      );
-                    },
-                    childCount: docs.length,
-                  ),
-                ),
-              );
+              return _buildProjectList(docs);
             },
           ),
         ],
@@ -108,8 +70,63 @@ class ProjectsScreen extends StatelessWidget {
     );
   }
 
-  void _confirmDelete(
-      BuildContext context, FirestoreService service, String docId) {
+  Widget _buildErrorView(Object? error) {
+    return SliverFillRemaining(
+      child: Center(
+        child: Text(
+          'Error: $error',
+          style: const TextStyle(color: AppTheme.errorColor),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEmptyView() {
+    return SliverFillRemaining(
+      child: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.folder_open,
+                size: 64, color: AppTheme.textSecondary.withOpacity(0.5)),
+            const SizedBox(height: 16),
+            Text('No projects found',
+                style: GoogleFonts.inter(
+                    fontSize: 18, color: AppTheme.textSecondary)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildProjectList(List<QueryDocumentSnapshot> docs) {
+    return SliverPadding(
+      padding: const EdgeInsets.all(16),
+      sliver: SliverList(
+        delegate: SliverChildBuilderDelegate(
+          (context, index) {
+            final doc = docs[index];
+            final data = doc.data() as Map<String, dynamic>;
+            return _ProjectCard(
+              docId: doc.id,
+              data: data,
+              onEdit: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) =>
+                      ProjectEditorScreen(docId: doc.id, initialData: data),
+                ),
+              ),
+              onDelete: () => _confirmDelete(context, doc.id),
+            );
+          },
+          childCount: docs.length,
+        ),
+      ),
+    );
+  }
+
+  void _confirmDelete(BuildContext context, String docId) {
     ActionDialog.show(
       context,
       title: "Delete Project?",
@@ -118,7 +135,7 @@ class ProjectsScreen extends StatelessWidget {
       confirmLabel: "DELETE",
       type: ActionDialogType.danger,
       onConfirm: () async {
-        await service.deleteProject(docId);
+        await _service.deleteProject(docId);
         if (context.mounted) {
           ActionDialog.show(
             context,
@@ -144,7 +161,6 @@ class _ProjectCard extends StatelessWidget {
       required this.data,
       required this.onEdit,
       required this.onDelete});
-
   @override
   Widget build(BuildContext context) {
     return GradientCard(
