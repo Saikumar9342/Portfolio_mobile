@@ -32,4 +32,20 @@ class CloudinaryService {
       return null;
     }
   }
+
+  Future<String?> uploadPdf(String path) async {
+    try {
+      CloudinaryResponse response = await cloudinary.uploadFile(
+        CloudinaryFile.fromFile(
+          path,
+          resourceType: CloudinaryResourceType.Auto,
+          folder: 'resumes',
+        ),
+      );
+      return response.secureUrl;
+    } catch (e) {
+      print("Error uploading PDF: $e");
+      return null;
+    }
+  }
 }

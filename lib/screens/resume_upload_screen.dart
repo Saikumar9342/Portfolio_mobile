@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:syncfusion_flutter_pdf/pdf.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../services/firestore_service.dart';
+import '../services/cloudinary_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/primary_button.dart';
 import '../widgets/gradient_card.dart';
@@ -25,6 +26,7 @@ class _ResumeUploadScreenState extends State<ResumeUploadScreen> {
   List<Map<String, dynamic>> _extractedProjects = [];
   Map<String, dynamic> _extractedProfile = {};
   bool _hasParsed = false;
+  String? _pickedFilePath;
 
   Future<void> _pickAndParseResume() async {
     setState(() {
@@ -40,6 +42,7 @@ class _ResumeUploadScreenState extends State<ResumeUploadScreen> {
 
       if (result != null) {
         String path = result.files.single.path!;
+        _pickedFilePath = path;
         setState(() => _status = 'Reading PDF Content...');
         final String text = await _extractTextFromPdf(path);
 
@@ -51,6 +54,7 @@ class _ResumeUploadScreenState extends State<ResumeUploadScreen> {
           _hasParsed = true;
         });
       } else {
+        _pickedFilePath = null;
         setState(() {
           _status = '';
           _isLoading = false;
@@ -293,6 +297,19 @@ class _ResumeUploadScreenState extends State<ResumeUploadScreen> {
       final skills = List<String>.from(_extractedProfile['skills'] ?? []);
       final role = _extractedProfile['role'] ?? 'Software Engineer';
 
+      if (_pickedFilePath != null) {
+        setState(() => _status = "Uploading Resume PDF...");
+        final url = await CloudinaryService().uploadPdf(_pickedFilePath!);
+        if (url != null) {
+          print("UPLOADED SUCCESS: $url");
+          _extractedProfile['resumeUrl'] = url;
+        } else {
+          print("UPLOAD RETURNED NULL");
+        }
+      } else {
+        print("PICKED FILE PATH IS NULL");
+      }
+
       await _firestoreService.updateContent('hero', {
         'title': "HI, I'M ${name.toUpperCase()}",
         'subtitle': role,
@@ -301,8 +318,14 @@ class _ResumeUploadScreenState extends State<ResumeUploadScreen> {
 
       Map<String, dynamic> contactData = {};
       if (email.isNotEmpty) contactData['email'] = email;
+      if (_extractedProfile['resumeUrl'] != null) {
+        contactData['resumeUrl'] = _extractedProfile['resumeUrl'];
+      }
       if (contactData.isNotEmpty) {
+        print("UPDATING CONTACT WITH: $contactData");
         await _firestoreService.updateContent('contact', contactData);
+      } else {
+        print("NO CONTACT DATA TO UPDATE");
       }
 
       List<Map<String, String>> socialLinks = [];
