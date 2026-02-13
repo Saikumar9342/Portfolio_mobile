@@ -6,6 +6,7 @@ import '../services/firestore_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/custom_text_field.dart';
 import '../widgets/primary_button.dart';
+import '../widgets/action_dialog.dart';
 
 enum DataType { string, stringList, objectList, json, image }
 
@@ -34,6 +35,7 @@ class _ContentEditorScreenState extends State<ContentEditorScreen> {
   final Map<String, FieldData> _fields = {};
   bool _isLoading = true;
   bool _isSaving = false;
+  bool _isDirty = false;
   final CloudinaryService _cloudinaryService = CloudinaryService();
 
   @override
@@ -113,7 +115,13 @@ class _ContentEditorScreenState extends State<ContentEditorScreen> {
             type = DataType.json;
           }
         }
-        _fields[key] = FieldData(TextEditingController(text: text), type);
+        final controller = TextEditingController(text: text);
+        controller.addListener(() {
+          if (!_isDirty && !_isLoading) {
+            setState(() => _isDirty = true);
+          }
+        });
+        _fields[key] = FieldData(controller, type);
       }
     } catch (e) {
       debugPrint('Error loading data: $e');
@@ -226,8 +234,12 @@ class _ContentEditorScreenState extends State<ContentEditorScreen> {
           }
         } catch (e) {
           hasError = true;
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Error parsing field $key: $e')),
+          ActionDialog.show(
+            context,
+            title: "Format Error",
+            message: 'Error parsing field $key: $e',
+            type: ActionDialogType.danger,
+            onConfirm: () {},
           );
         }
       });
@@ -240,19 +252,35 @@ class _ContentEditorScreenState extends State<ContentEditorScreen> {
       try {
         await FirestoreService().updateContent(widget.docId, data);
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-                content: Text('Saved successfully'),
-                backgroundColor: AppTheme.primaryColor),
+          setState(() => _isDirty = false);
+          ActionDialog.show(
+            context,
+            title: "Success",
+            message: "Your changes have been saved successfully!",
+            onConfirm: () => Navigator.pop(context),
           );
-          Navigator.pop(context);
         }
       } catch (e) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-                content: Text('Error saving: $e'),
-                backgroundColor: AppTheme.errorColor),
+          showDialog(
+            context: context,
+            builder: (context) => AlertDialog(
+              backgroundColor: AppTheme.surfaceColor,
+              title: Text('Save Error',
+                  style: GoogleFonts.outfit(
+                      fontWeight: FontWeight.bold, color: Colors.white)),
+              content: Text('Failed to save changes: $e',
+                  style: GoogleFonts.inter(color: AppTheme.textSecondary)),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(20)),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('OK',
+                      style: TextStyle(color: AppTheme.primaryColor)),
+                ),
+              ],
+            ),
           );
         }
       } finally {
@@ -269,79 +297,105 @@ class _ContentEditorScreenState extends State<ContentEditorScreen> {
       });
     } else {
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(const SnackBar(content: Text('Image upload failed')));
+        ActionDialog.show(
+          context,
+          title: "Upload Failed",
+          message: "The image could not be uploaded to Cloudinary.",
+          type: ActionDialogType.danger,
+          onConfirm: () {},
+        );
       }
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppTheme.scaffoldBackgroundColor,
-      body: _isLoading
-          ? const Center(
-              child: CircularProgressIndicator(color: AppTheme.primaryColor))
-          : Form(
-              key: _formKey,
-              child: CustomScrollView(
-                slivers: [
-                  SliverAppBar.large(
-                    title: Text(widget.title,
-                        style: GoogleFonts.outfit(fontWeight: FontWeight.bold)),
-                    backgroundColor: AppTheme.scaffoldBackgroundColor,
-                    surfaceTintColor: Colors.transparent,
-                    pinned: true,
-                    actions: [
-                      Padding(
-                        padding: const EdgeInsets.only(right: 16),
-                        child: _isSaving
-                            ? const Center(
-                                child: SizedBox(
-                                  width: 24,
-                                  height: 24,
-                                  child: CircularProgressIndicator(
-                                    color: AppTheme.primaryColor,
-                                    strokeWidth: 2,
+    return PopScope(
+      canPop: !_isDirty || _isSaving,
+      onPopInvokedWithResult: (didPop, result) async {
+        if (didPop) return;
+
+        final shouldPop = await ActionDialog.show(
+          context,
+          title: "Unsaved Changes",
+          message:
+              "You have unsaved changes. Are you sure you want to discard them?",
+          confirmLabel: "DISCARD",
+          type: ActionDialogType.warning,
+          onConfirm: () {},
+        );
+
+        if (shouldPop == true && context.mounted) {
+          Navigator.pop(context);
+        }
+      },
+      child: Scaffold(
+        backgroundColor: AppTheme.scaffoldBackgroundColor,
+        body: _isLoading
+            ? const Center(
+                child: CircularProgressIndicator(color: AppTheme.primaryColor))
+            : Form(
+                key: _formKey,
+                child: CustomScrollView(
+                  slivers: [
+                    SliverAppBar.large(
+                      title: Text(widget.title,
+                          style:
+                              GoogleFonts.outfit(fontWeight: FontWeight.bold)),
+                      backgroundColor: AppTheme.scaffoldBackgroundColor,
+                      surfaceTintColor: Colors.transparent,
+                      pinned: true,
+                      actions: [
+                        Padding(
+                          padding: const EdgeInsets.only(right: 16),
+                          child: _isSaving
+                              ? const Center(
+                                  child: SizedBox(
+                                    width: 24,
+                                    height: 24,
+                                    child: CircularProgressIndicator(
+                                      color: AppTheme.primaryColor,
+                                      strokeWidth: 2,
+                                    ),
                                   ),
+                                )
+                              : IconButton(
+                                  icon: const Icon(Icons.check_circle,
+                                      color: AppTheme.primaryColor, size: 32),
+                                  onPressed: _save,
                                 ),
-                              )
-                            : IconButton(
-                                icon: const Icon(Icons.check_circle,
-                                    color: AppTheme.primaryColor, size: 32),
-                                onPressed: _save,
-                              ),
-                      ),
-                    ],
-                  ),
-                  SliverPadding(
-                    padding: const EdgeInsets.all(20),
-                    sliver: SliverList(
-                      delegate: SliverChildBuilderDelegate(
-                        (context, index) {
-                          final entry = _fields.entries.toList()[index];
-                          return Padding(
-                            padding: const EdgeInsets.only(bottom: 24),
-                            child: _buildField(entry.key, entry.value),
-                          );
-                        },
-                        childCount: _fields.length,
+                        ),
+                      ],
+                    ),
+                    SliverPadding(
+                      padding: const EdgeInsets.all(20),
+                      sliver: SliverList(
+                        delegate: SliverChildBuilderDelegate(
+                          (context, index) {
+                            final entry = _fields.entries.toList()[index];
+                            return Padding(
+                              padding: const EdgeInsets.only(bottom: 24),
+                              child: _buildField(entry.key, entry.value),
+                            );
+                          },
+                          childCount: _fields.length,
+                        ),
                       ),
                     ),
-                  ),
-                  const SliverToBoxAdapter(child: SizedBox(height: 80)),
-                ],
+                    const SliverToBoxAdapter(child: SizedBox(height: 80)),
+                  ],
+                ),
               ),
-            ),
-      floatingActionButton: _isSaving
-          ? null
-          : FloatingActionButton.extended(
-              onPressed: _save,
-              label: Text("Save Changes",
-                  style: GoogleFonts.outfit(fontWeight: FontWeight.bold)),
-              icon: const Icon(Icons.save),
-              backgroundColor: AppTheme.primaryColor,
-            ),
+        floatingActionButton: _isSaving
+            ? null
+            : FloatingActionButton.extended(
+                onPressed: _save,
+                label: Text("Save Changes",
+                    style: GoogleFonts.outfit(fontWeight: FontWeight.bold)),
+                icon: const Icon(Icons.save),
+                backgroundColor: AppTheme.primaryColor,
+              ),
+      ),
     );
   }
 
@@ -401,7 +455,6 @@ class _ContentEditorScreenState extends State<ContentEditorScreen> {
             text: "Upload New Image",
             onPressed: () => _pickImage(field),
             icon: Icons.cloud_upload_outlined,
-            backgroundColor: AppTheme.surfaceColor,
           ),
         ],
       );
@@ -493,7 +546,6 @@ class _ContentEditorScreenState extends State<ContentEditorScreen> {
           text: "Add ${key.toUpperCase()}",
           onPressed: () => _editListItem(key, items, -1, field),
           icon: Icons.add,
-          backgroundColor: AppTheme.surfaceColor,
         )
       ],
     );

@@ -7,6 +7,7 @@ import '../theme/app_theme.dart';
 import '../widgets/custom_text_field.dart';
 import '../widgets/primary_button.dart';
 import '../widgets/gradient_card.dart';
+import '../widgets/action_dialog.dart';
 
 class ProjectsScreen extends StatelessWidget {
   const ProjectsScreen({super.key});
@@ -109,26 +110,25 @@ class ProjectsScreen extends StatelessWidget {
 
   void _confirmDelete(
       BuildContext context, FirestoreService service, String docId) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: AppTheme.surfaceColor,
-        title: const Text('Delete Project?'),
-        content: const Text('This action cannot be undone.'),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancel')),
-          TextButton(
-            onPressed: () {
-              service.deleteProject(docId);
-              Navigator.pop(context);
-            },
-            child: const Text('Delete',
-                style: TextStyle(color: AppTheme.errorColor)),
-          ),
-        ],
-      ),
+    ActionDialog.show(
+      context,
+      title: "Delete Project?",
+      message:
+          "This action cannot be undone. Are you sure you want to delete this project?",
+      confirmLabel: "DELETE",
+      type: ActionDialogType.danger,
+      onConfirm: () async {
+        await service.deleteProject(docId);
+        if (context.mounted) {
+          ActionDialog.show(
+            context,
+            title: "Project Deleted",
+            message: "The project has been permanently removed.",
+            onConfirm: () {},
+          );
+        }
+      },
+      onCancel: () {},
     );
   }
 }
@@ -262,6 +262,7 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
   final _githubLinkController = TextEditingController();
   final CloudinaryService _cloudinaryService = CloudinaryService();
   bool _isSaving = false;
+  bool _isDirty = false;
 
   @override
   void initState() {
@@ -276,6 +277,18 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
       _liveLinkController.text = widget.initialData!['liveLink'] ?? '';
       _githubLinkController.text = widget.initialData!['githubLink'] ?? '';
     }
+
+    // Add listeners to track changes
+    void setDirty() {
+      if (!_isDirty) setState(() => _isDirty = true);
+    }
+
+    _titleController.addListener(setDirty);
+    _descController.addListener(setDirty);
+    _techStackController.addListener(setDirty);
+    _imageUrlController.addListener(setDirty);
+    _liveLinkController.addListener(setDirty);
+    _githubLinkController.addListener(setDirty);
   }
 
   Future<void> _save() async {
@@ -300,11 +313,40 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
         } else {
           await FirestoreService().addProject(data);
         }
-        if (mounted) Navigator.pop(context);
+        if (mounted) {
+          setState(() => _isDirty = false);
+          ActionDialog.show(
+            context,
+            title: "Success",
+            message: widget.docId == null
+                ? "Your new project has been added successfully!"
+                : "Project details have been updated.",
+            onConfirm: () => Navigator.pop(context),
+          );
+        }
       } catch (e) {
-        if (mounted)
-          ScaffoldMessenger.of(context)
-              .showSnackBar(SnackBar(content: Text('Error: $e')));
+        if (mounted) {
+          showDialog(
+            context: context,
+            builder: (context) => AlertDialog(
+              backgroundColor: AppTheme.surfaceColor,
+              title: Text('Error',
+                  style: GoogleFonts.outfit(
+                      fontWeight: FontWeight.bold, color: Colors.white)),
+              content: Text('Could not save project: $e',
+                  style: GoogleFonts.inter(color: AppTheme.textSecondary)),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(20)),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('OK',
+                      style: TextStyle(color: AppTheme.primaryColor)),
+                ),
+              ],
+            ),
+          );
+        }
       } finally {
         if (mounted) setState(() => _isSaving = false);
       }
@@ -322,105 +364,125 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppTheme.scaffoldBackgroundColor,
-      appBar: AppBar(
-        title: Text(widget.docId == null ? 'Add Project' : 'Edit Project'),
-        backgroundColor: AppTheme.scaffoldBackgroundColor,
-      ),
-      body: Form(
-        key: _formKey,
-        child: ListView(
-          padding: const EdgeInsets.all(20),
-          children: [
-            CustomTextField(
-                label: "PROJECT TITLE",
-                controller: _titleController,
-                hint: "E.g. E-Commerce App"),
-            const SizedBox(height: 20),
-            CustomTextField(
-                label: "DESCRIPTION",
-                controller: _descController,
-                isMultiline: true,
-                hint: "Project details..."),
-            const SizedBox(height: 20),
-            CustomTextField(
-                label: "TECH STACK",
-                controller: _techStackController,
-                hint: "Flutter, Firebase, React..."),
-            const SizedBox(height: 20),
+    return PopScope(
+      canPop: !_isDirty || _isSaving,
+      onPopInvokedWithResult: (didPop, result) async {
+        if (didPop) return;
 
-            // Image Upload Section
-            Text("PROJECT COVER",
-                style: GoogleFonts.inter(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: AppTheme.textSecondary)),
-            const SizedBox(height: 8),
-            Hero(
-              tag: widget.docId != null
-                  ? 'project_image_${widget.docId}'
-                  : 'new_project_image',
-              child: GestureDetector(
-                onTap: _pickImage,
-                child: Container(
-                  height: 150,
-                  width: double.infinity,
-                  decoration: BoxDecoration(
-                      color: AppTheme.inputFillColor,
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: Colors.white10),
-                      image: _imageUrlController.text.isNotEmpty
-                          ? DecorationImage(
-                              image: NetworkImage(_imageUrlController.text),
-                              fit: BoxFit.cover)
-                          : null),
-                  child: _imageUrlController.text.isEmpty
-                      ? const Center(
-                          child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                              Icon(Icons.add_photo_alternate_outlined,
-                                  size: 32, color: AppTheme.primaryColor),
-                              SizedBox(height: 8),
-                              Text("Tap to upload image",
-                                  style:
-                                      TextStyle(color: AppTheme.textSecondary))
-                            ]))
-                      : null,
+        final shouldPop = await ActionDialog.show(
+          context,
+          title: "Unsaved Changes",
+          message:
+              "You have unsaved changes. Are you sure you want to discard them?",
+          confirmLabel: "DISCARD",
+          type: ActionDialogType.warning,
+          onConfirm: () {},
+        );
+
+        if (shouldPop == true && context.mounted) {
+          Navigator.pop(context);
+        }
+      },
+      child: Scaffold(
+        backgroundColor: AppTheme.scaffoldBackgroundColor,
+        appBar: AppBar(
+          title: Text(widget.docId == null ? 'Add Project' : 'Edit Project'),
+          backgroundColor: AppTheme.scaffoldBackgroundColor,
+        ),
+        body: Form(
+          key: _formKey,
+          child: ListView(
+            padding: const EdgeInsets.all(20),
+            children: [
+              CustomTextField(
+                  label: "PROJECT TITLE",
+                  controller: _titleController,
+                  hint: "E.g. E-Commerce App"),
+              const SizedBox(height: 20),
+              CustomTextField(
+                  label: "DESCRIPTION",
+                  controller: _descController,
+                  isMultiline: true,
+                  hint: "Project details..."),
+              const SizedBox(height: 20),
+              CustomTextField(
+                  label: "TECH STACK",
+                  controller: _techStackController,
+                  hint: "Flutter, Firebase, React..."),
+              const SizedBox(height: 20),
+
+              // Image Upload Section
+              Text("PROJECT COVER",
+                  style: GoogleFonts.inter(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: AppTheme.textSecondary)),
+              const SizedBox(height: 8),
+              Hero(
+                tag: widget.docId != null
+                    ? 'project_image_${widget.docId}'
+                    : 'new_project_image',
+                child: GestureDetector(
+                  onTap: _pickImage,
+                  child: Container(
+                    height: 150,
+                    width: double.infinity,
+                    decoration: BoxDecoration(
+                        color: AppTheme.inputFillColor,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: Colors.white10),
+                        image: _imageUrlController.text.isNotEmpty
+                            ? DecorationImage(
+                                image: NetworkImage(_imageUrlController.text),
+                                fit: BoxFit.cover)
+                            : null),
+                    child: _imageUrlController.text.isEmpty
+                        ? const Center(
+                            child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                Icon(Icons.add_photo_alternate_outlined,
+                                    size: 32, color: AppTheme.primaryColor),
+                                SizedBox(height: 8),
+                                Text("Tap to upload image",
+                                    style: TextStyle(
+                                        color: AppTheme.textSecondary))
+                              ]))
+                        : null,
+                  ),
                 ),
               ),
-            ),
-            if (_imageUrlController.text.isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.only(top: 8),
-                child: TextButton(
-                    onPressed: () =>
-                        setState(() => _imageUrlController.clear()),
-                    child: const Text("Remove Image",
-                        style: TextStyle(color: AppTheme.errorColor))),
+              if (_imageUrlController.text.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: TextButton(
+                      onPressed: () =>
+                          setState(() => _imageUrlController.clear()),
+                      child: const Text("Remove Image",
+                          style: TextStyle(color: AppTheme.errorColor))),
+                ),
+
+              const SizedBox(height: 20),
+              CustomTextField(
+                  label: "LIVE LINK",
+                  controller: _liveLinkController,
+                  hint: "https://myapp.com",
+                  prefixIcon: Icons.link),
+              const SizedBox(height: 20),
+              CustomTextField(
+                  label: "GITHUB LINK",
+                  controller: _githubLinkController,
+                  hint: "https://github.com/...",
+                  prefixIcon: Icons.code),
+
+              const SizedBox(height: 40),
+              PrimaryButton(
+                text: "SAVE PROJECT",
+                onPressed: _save,
+                isLoading: _isSaving,
               ),
-
-            const SizedBox(height: 20),
-            CustomTextField(
-                label: "LIVE LINK",
-                controller: _liveLinkController,
-                hint: "https://myapp.com",
-                prefixIcon: Icons.link),
-            const SizedBox(height: 20),
-            CustomTextField(
-                label: "GITHUB LINK",
-                controller: _githubLinkController,
-                hint: "https://github.com/...",
-                prefixIcon: Icons.code),
-
-            const SizedBox(height: 40),
-            PrimaryButton(
-              text: "SAVE PROJECT",
-              onPressed: _save,
-              isLoading: _isSaving,
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

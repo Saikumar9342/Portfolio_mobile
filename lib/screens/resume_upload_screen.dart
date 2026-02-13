@@ -8,6 +8,7 @@ import '../theme/app_theme.dart';
 import '../widgets/primary_button.dart';
 import '../widgets/gradient_card.dart';
 import '../widgets/custom_text_field.dart';
+import '../widgets/action_dialog.dart';
 
 class ResumeUploadScreen extends StatefulWidget {
   const ResumeUploadScreen({super.key});
@@ -57,9 +58,25 @@ class _ResumeUploadScreenState extends State<ResumeUploadScreen> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-              content: Text('Error: $e'), backgroundColor: AppTheme.errorColor),
+        showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            backgroundColor: AppTheme.surfaceColor,
+            title: Text('Error',
+                style: GoogleFonts.outfit(
+                    fontWeight: FontWeight.bold, color: Colors.white)),
+            content: Text(e.toString(),
+                style: GoogleFonts.inter(color: AppTheme.textSecondary)),
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('OK',
+                    style: TextStyle(color: AppTheme.primaryColor)),
+              ),
+            ],
+          ),
         );
       }
       setState(() {
@@ -290,15 +307,24 @@ class _ResumeUploadScreenState extends State<ResumeUploadScreen> {
       }
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-            content: Text('Portfolio updated successfully!'),
-            backgroundColor: AppTheme.primaryColor));
-        Navigator.pop(context);
+        ActionDialog.show(
+          context,
+          title: "Success",
+          message:
+              "Your portfolio has been synchronized with your resume data!",
+          onConfirm: () => Navigator.pop(context),
+        );
       }
     } catch (e) {
-      if (mounted)
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('Error: $e')));
+      if (mounted) {
+        ActionDialog.show(
+          context,
+          title: "Save Error",
+          message: e.toString(),
+          type: ActionDialogType.danger,
+          onConfirm: () {},
+        );
+      }
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -514,35 +540,57 @@ class _ResumeUploadScreenState extends State<ResumeUploadScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppTheme.scaffoldBackgroundColor,
-      appBar: AppBar(
-        title: Text(_hasParsed ? 'Review Data' : 'Upload Resume',
-            style: GoogleFonts.outfit(fontWeight: FontWeight.bold)),
+    return PopScope(
+      canPop: !_hasParsed || _isLoading,
+      onPopInvokedWithResult: (didPop, result) async {
+        if (didPop) return;
+
+        final shouldPop = await ActionDialog.show(
+          context,
+          title: "Stop Review?",
+          message:
+              "You have extracted data that hasn't been saved yet. Are you sure you want to discard the results?",
+          confirmLabel: "DISCARD",
+          type: ActionDialogType.warning,
+          onConfirm: () {},
+        );
+
+        if (shouldPop == true && context.mounted) {
+          Navigator.pop(context);
+        }
+      },
+      child: Scaffold(
         backgroundColor: AppTheme.scaffoldBackgroundColor,
+        appBar: AppBar(
+          title: Text(_hasParsed ? 'Review Data' : 'Upload Resume',
+              style: GoogleFonts.outfit(fontWeight: FontWeight.bold)),
+          backgroundColor: AppTheme.scaffoldBackgroundColor,
+        ),
+        bottomNavigationBar: _hasParsed && !_isLoading
+            ? Padding(
+                padding: const EdgeInsets.all(20),
+                child: PrimaryButton(
+                    text: "SAVE TO PORTFOLIO", onPressed: _saveToFirestore),
+              )
+            : null,
+        body: _isLoading
+            ? Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const CircularProgressIndicator(
+                        color: AppTheme.primaryColor),
+                    const SizedBox(height: 24),
+                    Text(_status,
+                        style:
+                            GoogleFonts.inter(color: AppTheme.textSecondary)),
+                  ],
+                ),
+              )
+            : !_hasParsed
+                ? _buildUploadView()
+                : _buildReviewView(),
       ),
-      bottomNavigationBar: _hasParsed && !_isLoading
-          ? Padding(
-              padding: const EdgeInsets.all(20),
-              child: PrimaryButton(
-                  text: "SAVE TO PORTFOLIO", onPressed: _saveToFirestore),
-            )
-          : null,
-      body: _isLoading
-          ? Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const CircularProgressIndicator(color: AppTheme.primaryColor),
-                  const SizedBox(height: 24),
-                  Text(_status,
-                      style: GoogleFonts.inter(color: AppTheme.textSecondary)),
-                ],
-              ),
-            )
-          : !_hasParsed
-              ? _buildUploadView()
-              : _buildReviewView(),
     );
   }
 

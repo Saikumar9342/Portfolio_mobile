@@ -6,6 +6,7 @@ import 'content_editor_screen.dart';
 import 'projects_screen.dart';
 import 'resume_upload_screen.dart';
 import '../services/seed_data.dart';
+import '../widgets/action_dialog.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -163,20 +164,34 @@ class HomeScreen extends StatelessWidget {
   }
 
   Future<void> _seedDatabase(BuildContext context) async {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-          content: Text('Resetting database...'),
-          backgroundColor: AppTheme.surfaceColor),
+    ActionDialog.show(
+      context,
+      title: "Reset Database?",
+      message:
+          "This will restore all portfolio data to defaults. All your custom changes will be lost.",
+      confirmLabel: "RESET NOW",
+      type: ActionDialogType.warning,
+      onConfirm: () async {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+              content: Text('Resetting database...'),
+              backgroundColor: AppTheme.surfaceColor),
+        );
+
+        await DataSeeder().seedAllData();
+
+        if (context.mounted) {
+          ActionDialog.show(
+            context,
+            title: "Database Reset",
+            message:
+                "Your portfolio database has been restored to default settings successfully.",
+            onConfirm: () {},
+          );
+        }
+      },
+      onCancel: () {},
     );
-    await DataSeeder().seedAllData();
-    if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Database reset complete!'),
-          backgroundColor: AppTheme.primaryColor,
-        ),
-      );
-    }
   }
 }
 
