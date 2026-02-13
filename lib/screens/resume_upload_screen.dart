@@ -174,15 +174,48 @@ class _ResumeUploadScreenState extends State<ResumeUploadScreen> {
     final matches = projectRegex.allMatches(cleanText);
 
     for (final match in matches) {
+      String block = match.group(0) ?? '';
       String title = match.group(1)?.replaceAll('\n', ' ').trim() ?? 'Untitled';
       String environment = match.group(2)?.replaceAll('\n', ' ').trim() ?? '';
-      String description = match.group(3)?.trim() ?? '';
+      String rawDescription = match.group(3)?.trim() ?? '';
 
-      // Clean up description
+      // Extract Role if present in the block
+      String role = "Software Engineer";
+      final roleMatch =
+          RegExp(r'Role:\s*([^\n]+)', caseSensitive: false).firstMatch(block);
+      if (roleMatch != null) {
+        role = roleMatch.group(1)!.trim();
+      }
+
+      // 1. Separate Short Description vs Full Narrative
+      String description = "";
+      String fullDescription = rawDescription;
+
+      // If there's a clear "Roles and Responsibilities" or bullet section
+      final parts = rawDescription
+          .split(RegExp(r'Roles and Responsibilities:', caseSensitive: false));
+      if (parts.length > 1) {
+        description = parts[0].trim();
+        fullDescription =
+            parts[0].trim() + "\n\nKey Responsibilities:\n" + parts[1].trim();
+      } else {
+        // Heuristic: First 2 sentences as short description
+        final sentences = rawDescription.split(RegExp(r'(?<=\. )'));
+        if (sentences.isNotEmpty) {
+          description = sentences.take(2).join(' ').trim();
+          if (description.length > 150) {
+            description = description.substring(0, 147) + '...';
+          }
+        } else {
+          description = rawDescription;
+        }
+      }
+
+      // Clean up description formatting
       description = description
           .replaceAll(RegExp(r'^\s*[-·•]\s*', multiLine: true), '')
+          .replaceAll(RegExp(r'\n+'), ' ')
           .trim();
-      description = description.replaceAll(RegExp(r'\n+'), ' ');
 
       // Split environment into tech stack
       List<String> stack = environment
@@ -191,12 +224,15 @@ class _ResumeUploadScreenState extends State<ResumeUploadScreen> {
           .where((e) => e.isNotEmpty && e.length < 30)
           .toList();
 
-      if (stack.isEmpty) stack = ['Software Engineering'];
+      if (stack.isEmpty) stack = ['Engineering'];
 
       projects.add({
         'title': title,
+        'role': role,
         'description': description,
+        'fullDescription': fullDescription,
         'techStack': stack,
+        'category': 'Professional Work',
         'imageUrl': '',
         'liveLink': '',
         'githubLink': '',
@@ -212,7 +248,6 @@ class _ResumeUploadScreenState extends State<ResumeUploadScreen> {
       if (lines.isEmpty) continue;
 
       String potentialTitle = lines.first.trim();
-      // Only supplemental if not already found
       if (!projects.any((p) =>
           p['title'].toLowerCase().contains(potentialTitle.toLowerCase()) ||
           potentialTitle.toLowerCase().contains(p['title'].toLowerCase()))) {
@@ -220,14 +255,21 @@ class _ResumeUploadScreenState extends State<ResumeUploadScreen> {
             block.toLowerCase().contains('project')) {
           if (potentialTitle.length < 50 &&
               !potentialTitle.toLowerCase().contains('experience')) {
+            String blockText = lines.length > 1
+                ? lines.sublist(1).join(' ').trim()
+                : block.trim();
+
             projects.add({
               'title': potentialTitle,
-              'description': lines.length > 1
-                  ? lines.sublist(1).join(' ').trim()
-                  : block.trim(),
+              'role': 'Developer',
+              'description': blockText.length > 150
+                  ? blockText.substring(0, 147) + '...'
+                  : blockText,
+              'fullDescription': blockText,
               'techStack': knownSkills
                   .where((s) => block.toLowerCase().contains(s.toLowerCase()))
                   .toList(),
+              'category': 'Selected Project',
               'imageUrl': '',
               'liveLink': '',
               'githubLink': '',
@@ -333,7 +375,11 @@ class _ResumeUploadScreenState extends State<ResumeUploadScreen> {
   void _editProject(int index) {
     final project = _extractedProjects[index];
     final titleCtrl = TextEditingController(text: project['title']);
+    final roleCtrl =
+        TextEditingController(text: project['role'] ?? 'Developer');
     final descCtrl = TextEditingController(text: project['description']);
+    final fullDescCtrl =
+        TextEditingController(text: project['fullDescription']);
     final techCtrl =
         TextEditingController(text: (project['techStack'] as List).join(', '));
 
@@ -341,7 +387,7 @@ class _ResumeUploadScreenState extends State<ResumeUploadScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: AppTheme.surfaceColor,
-        title: Text("Edit Project",
+        title: Text("Edit Extracted Project",
             style: GoogleFonts.outfit(color: Colors.white)),
         content: SingleChildScrollView(
           child: Column(
@@ -349,9 +395,16 @@ class _ResumeUploadScreenState extends State<ResumeUploadScreen> {
             children: [
               CustomTextField(label: "TITLE", controller: titleCtrl),
               const SizedBox(height: 16),
+              CustomTextField(label: "ROLE", controller: roleCtrl),
+              const SizedBox(height: 16),
               CustomTextField(
-                  label: "DESCRIPTION",
+                  label: "SHORT SUMMARY",
                   controller: descCtrl,
+                  isMultiline: true),
+              const SizedBox(height: 16),
+              CustomTextField(
+                  label: "FULL DESCRIPTION (DEEP DIVE)",
+                  controller: fullDescCtrl,
                   isMultiline: true),
               const SizedBox(height: 16),
               CustomTextField(
@@ -370,7 +423,9 @@ class _ResumeUploadScreenState extends State<ResumeUploadScreen> {
                 _extractedProjects[index] = {
                   ..._extractedProjects[index],
                   'title': titleCtrl.text,
+                  'role': roleCtrl.text,
                   'description': descCtrl.text,
+                  'fullDescription': fullDescCtrl.text,
                   'techStack': techCtrl.text
                       .split(',')
                       .map((e) => e.trim())
@@ -727,7 +782,14 @@ class _ResumeUploadScreenState extends State<ResumeUploadScreen> {
                                 fontSize: 18,
                                 fontWeight: FontWeight.bold,
                                 color: AppTheme.textPrimary)),
-                        const SizedBox(height: 8),
+                        const SizedBox(height: 4),
+                        Text(p['role'] ?? 'Developer',
+                            style: GoogleFonts.inter(
+                                fontSize: 13,
+                                fontWeight: FontWeight.bold,
+                                color: AppTheme.primaryColor,
+                                letterSpacing: 1.2)),
+                        const SizedBox(height: 12),
                         Text(p['description'],
                             style: GoogleFonts.inter(
                                 fontSize: 13,

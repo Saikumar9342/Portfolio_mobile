@@ -258,6 +258,9 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
   final _descController = TextEditingController();
   final _techStackController = TextEditingController();
   final _imageUrlController = TextEditingController();
+  final _categoryController = TextEditingController();
+  final _roleController = TextEditingController();
+  final _fullDescController = TextEditingController();
   final _liveLinkController = TextEditingController();
   final _githubLinkController = TextEditingController();
   final CloudinaryService _cloudinaryService = CloudinaryService();
@@ -274,6 +277,9 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
           (widget.initialData!['techStack'] as List<dynamic>?)?.join(', ') ??
               '';
       _imageUrlController.text = widget.initialData!['imageUrl'] ?? '';
+      _categoryController.text = widget.initialData!['category'] ?? '';
+      _roleController.text = widget.initialData!['role'] ?? '';
+      _fullDescController.text = widget.initialData!['fullDescription'] ?? '';
       _liveLinkController.text = widget.initialData!['liveLink'] ?? '';
       _githubLinkController.text = widget.initialData!['githubLink'] ?? '';
     }
@@ -287,6 +293,9 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
     _descController.addListener(setDirty);
     _techStackController.addListener(setDirty);
     _imageUrlController.addListener(setDirty);
+    _categoryController.addListener(setDirty);
+    _roleController.addListener(setDirty);
+    _fullDescController.addListener(setDirty);
     _liveLinkController.addListener(setDirty);
     _githubLinkController.addListener(setDirty);
   }
@@ -297,6 +306,9 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
       final data = {
         'title': _titleController.text,
         'description': _descController.text,
+        'fullDescription': _fullDescController.text,
+        'role': _roleController.text,
+        'category': _categoryController.text,
         'techStack': _techStackController.text
             .split(',')
             .map((e) => e.trim())
@@ -400,10 +412,34 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
                   hint: "E.g. E-Commerce App"),
               const SizedBox(height: 20),
               CustomTextField(
-                  label: "DESCRIPTION",
+                  label: "SHORT DESCRIPTION",
                   controller: _descController,
                   isMultiline: true,
-                  hint: "Project details..."),
+                  hint: "A brief summary for the gallery..."),
+              const SizedBox(height: 20),
+              CustomTextField(
+                  label: "FULL DESCRIPTION (DEEP DIVE)",
+                  controller: _fullDescController,
+                  isMultiline: true,
+                  hint: "Detailed narrative for the case study..."),
+              const SizedBox(height: 20),
+              Row(
+                children: [
+                  Expanded(
+                    child: CustomTextField(
+                        label: "CATEGORY",
+                        controller: _categoryController,
+                        hint: "Design + Dev"),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: CustomTextField(
+                        label: "ROLE",
+                        controller: _roleController,
+                        hint: "Lead Designer"),
+                  ),
+                ],
+              ),
               const SizedBox(height: 20),
               CustomTextField(
                   label: "TECH STACK",
