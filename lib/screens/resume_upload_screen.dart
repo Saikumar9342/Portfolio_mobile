@@ -593,6 +593,52 @@ class _ResumeUploadScreenState extends State<ResumeUploadScreen> {
     );
   }
 
+  void _editSkills() {
+    final skills = List<String>.from(_extractedProfile['skills'] ?? []);
+    final skillsCtrl = TextEditingController(text: skills.join(', '));
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppTheme.surfaceColor,
+        title: Text("Edit Extracted Skills",
+            style: GoogleFonts.outfit(color: Colors.white)),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              CustomTextField(
+                label: "SKILLS (Comma separated)",
+                controller: skillsCtrl,
+                isMultiline: true,
+              )
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text("Cancel"),
+          ),
+          TextButton(
+            onPressed: () {
+              setState(() {
+                _extractedProfile['skills'] = skillsCtrl.text
+                    .split(',')
+                    .map((e) => e.trim())
+                    .where((e) => e.isNotEmpty && e.length < 50)
+                    .toList();
+              });
+              Navigator.pop(ctx);
+            },
+            child: const Text("Save",
+                style: TextStyle(color: AppTheme.primaryColor)),
+          )
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return PopScope(
@@ -762,6 +808,40 @@ class _ResumeUploadScreenState extends State<ResumeUploadScreen> {
                       color: AppTheme.textSecondary, fontSize: 13)),
           ],
         )),
+        const SizedBox(height: 24),
+        const SizedBox(height: 24),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            _SectionHeader(title: "EXTRACTED SKILLS"),
+            IconButton(
+              icon:
+                  const Icon(Icons.edit_outlined, color: AppTheme.primaryColor),
+              onPressed: _editSkills,
+            ),
+          ],
+        ),
+        GradientCard(
+          child: SizedBox(
+            width: double.infinity,
+            child: Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: (_extractedProfile['skills'] as List<dynamic>? ?? [])
+                  .map((s) => Chip(
+                        label: Text(s.toString(),
+                            style: GoogleFonts.inter(fontSize: 12)),
+                        backgroundColor: AppTheme.inputFillColor,
+                        side: BorderSide.none,
+                        padding: const EdgeInsets.symmetric(horizontal: 4),
+                        labelStyle: const TextStyle(color: Colors.white),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8)),
+                      ))
+                  .toList(),
+            ),
+          ),
+        ),
         const SizedBox(height: 24),
         _SectionHeader(title: "PROJECTS (${_extractedProjects.length})"),
         ..._extractedProjects.asMap().entries.map((entry) {

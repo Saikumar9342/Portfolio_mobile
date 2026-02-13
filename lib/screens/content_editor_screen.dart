@@ -382,7 +382,25 @@ class _ContentEditorScreenState extends State<ContentEditorScreen> {
                         ),
                       ),
                     ),
-                    const SliverToBoxAdapter(child: SizedBox(height: 80)),
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 20),
+                        child: Column(
+                          children: [
+                            if (widget.docId == 'skills')
+                              Padding(
+                                padding: const EdgeInsets.only(bottom: 24),
+                                child: PrimaryButton(
+                                  text: "ADD NEW SKILL SECTION",
+                                  icon: Icons.playlist_add,
+                                  onPressed: _addNewSection,
+                                ),
+                              ),
+                            const SizedBox(height: 80),
+                          ],
+                        ),
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -395,6 +413,60 @@ class _ContentEditorScreenState extends State<ContentEditorScreen> {
                 icon: const Icon(Icons.save),
                 backgroundColor: AppTheme.primaryColor,
               ),
+      ),
+    );
+  }
+
+  Future<void> _addNewSection() async {
+    final nameCtrl = TextEditingController();
+    final titleCtrl = TextEditingController();
+
+    await showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppTheme.surfaceColor,
+        title: Text("Add New Skill Section",
+            style: GoogleFonts.outfit(color: Colors.white)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            CustomTextField(
+              label: "SECTION KEY (e.g. devops)",
+              controller: nameCtrl,
+              hint: "lowercase, no spaces",
+            ),
+            const SizedBox(height: 16),
+            CustomTextField(
+              label: "DISPLAY TITLE (e.g. DevOps)",
+              controller: titleCtrl,
+              hint: "Visible Section Title",
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx), child: const Text("Cancel")),
+          TextButton(
+            onPressed: () {
+              final key = nameCtrl.text.trim().toLowerCase();
+              final title = titleCtrl.text.trim();
+
+              if (key.isNotEmpty && title.isNotEmpty) {
+                setState(() {
+                  // Add the list field
+                  _fields[key] = FieldData(
+                      TextEditingController(text: '[]'), DataType.objectList);
+                  // Add the title field
+                  _fields['${key}Title'] = FieldData(
+                      TextEditingController(text: title), DataType.string);
+                });
+                Navigator.pop(ctx);
+              }
+            },
+            child: const Text("Add",
+                style: TextStyle(color: AppTheme.primaryColor)),
+          )
+        ],
       ),
     );
   }
@@ -592,17 +664,10 @@ class _ContentEditorScreenState extends State<ContentEditorScreen> {
                         // Try to keep types if possible, essentially for numbers
                         if (num.tryParse(v.text) != null &&
                             !v.text.contains(',')) {
-                          // Very basic heuristic, might need refinement if strings look like numbers
-                          // For now, let's keep everything as strings if it was string, to be safe.
-                          // Actually, skills level is number.
-                          if (key == 'frontend' ||
-                              key == 'backend' ||
-                              key == 'mobile' ||
-                              key == 'frameworks') {
-                            if (k == 'level') {
-                              newItem[k] = num.tryParse(v.text) ?? v.text;
-                              return;
-                            }
+                          // Generic check for level field in skills
+                          if (k == 'level' && widget.docId == 'skills') {
+                            newItem[k] = num.tryParse(v.text) ?? v.text;
+                            return;
                           }
                         }
                         newItem[k] = v.text;
@@ -630,8 +695,12 @@ class _ContentEditorScreenState extends State<ContentEditorScreen> {
       return {"degree": "", "institution": "", "year": ""};
     if (key == 'stats') return {"label": "", "value": ""};
     if (key == 'services') return {"id": "", "title": "", "description": ""};
-    if (['frontend', 'backend', 'mobile', 'frameworks', 'tools'].contains(key))
+
+    // Default template for ANY list in the SKILLS document
+    if (widget.docId == 'skills') {
       return {"name": "", "level": "90"};
+    }
+
     if (key == 'items') return {"label": "", "href": ""};
     if (key == 'socialLinks') return {"platform": "", "url": ""};
 
