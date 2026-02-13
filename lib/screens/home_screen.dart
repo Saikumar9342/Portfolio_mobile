@@ -5,6 +5,7 @@ import '../theme/app_theme.dart';
 import '../widgets/gradient_card.dart';
 import 'content_editor_screen.dart';
 import 'projects_screen.dart';
+import 'skills_manager_screen.dart';
 import 'resume_upload_screen.dart';
 import '../services/seed_data.dart';
 import '../widgets/action_dialog.dart';
@@ -137,7 +138,11 @@ class HomeScreen extends StatelessWidget {
                 _ContentItem(
                   title: "Skills",
                   icon: Icons.code,
-                  onTap: () => _navToEditor(context, 'Skills', 'skills'),
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (_) => const SkillsManagerScreen()),
+                  ),
                 ),
                 _ContentItem(
                   title: "Contact Info",
