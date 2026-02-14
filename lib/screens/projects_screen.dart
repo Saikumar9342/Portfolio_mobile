@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart'; // Added import
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../services/firestore_service.dart';
 import '../services/cloudinary_service.dart';
@@ -378,6 +379,34 @@ class _ProjectCard extends StatelessWidget {
                           );
                         }).toList(),
                       ),
+                      const SizedBox(height: 20),
+                      const Divider(color: Colors.white10, height: 1),
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          if (data['liveLink'] != null &&
+                              data['liveLink'].toString().isNotEmpty)
+                            _ProjectAction(
+                              icon: Icons.public_rounded,
+                              label: "Visit Site",
+                              onTap: () => _launchURL(data['liveLink']),
+                              color: AppTheme.primaryColor,
+                            ),
+                          if (data['liveLink'] != null &&
+                              data['liveLink'].toString().isNotEmpty &&
+                              data['githubLink'] != null &&
+                              data['githubLink'].toString().isNotEmpty)
+                            const SizedBox(width: 12),
+                          if (data['githubLink'] != null &&
+                              data['githubLink'].toString().isNotEmpty)
+                            _ProjectAction(
+                              icon: Icons.code_rounded,
+                              label: "GitHub",
+                              onTap: () => _launchURL(data['githubLink']),
+                              color: Colors.white60,
+                            ),
+                        ],
+                      ),
                     ],
                   ),
                 ),
@@ -401,6 +430,63 @@ class _ProjectCard extends StatelessWidget {
             ),
           ),
       ],
+    );
+  }
+
+  void _launchURL(String url) async {
+    final Uri uri = Uri.parse(url);
+    try {
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+      }
+    } catch (e) {
+      debugPrint("Could not launch $url: $e");
+    }
+  }
+}
+
+class _ProjectAction extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+  final Color color;
+
+  const _ProjectAction({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.05),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: color.withValues(alpha: 0.1)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 16, color: color),
+            const SizedBox(width: 8),
+            Text(
+              label,
+              style: GoogleFonts.inter(
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+                color: color,
+                letterSpacing: 0.5,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

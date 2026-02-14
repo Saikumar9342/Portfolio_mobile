@@ -154,8 +154,9 @@ class _SkillDetailScreenState extends State<SkillDetailScreen> {
   Widget _buildSkillTile(int index, dynamic item) {
     // Determine if it's a simple string or an object {name, level}
     final isObject = item is Map;
-    final name = isObject ? item['name'] : item.toString();
+    final name = isObject ? (item['name'] ?? item.toString()) : item.toString();
     final level = isObject ? item['level'] : null;
+    final iconName = isObject ? item['icon'] : null;
 
     return Container(
       key: ValueKey(item), // Important for ReorderableListView
@@ -167,8 +168,18 @@ class _SkillDetailScreenState extends State<SkillDetailScreen> {
       ),
       child: ListTile(
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        leading: const Icon(Icons.drag_indicator, color: Colors.white24),
-        title: Text(name,
+        leading: iconName != null
+            ? Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: AppTheme.primaryColor.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(_getIconData(iconName as String),
+                    color: AppTheme.primaryColor, size: 20),
+              )
+            : const Icon(Icons.drag_indicator, color: Colors.white24),
+        title: Text(name.toString(),
             style: const TextStyle(
                 color: Colors.white, fontWeight: FontWeight.bold)),
         subtitle: level != null
@@ -242,10 +253,13 @@ class _SkillDetailScreenState extends State<SkillDetailScreen> {
     final nameCtrl = TextEditingController();
     final levelCtrl = TextEditingController(); // For rich editor
 
+    String selectedIcon = 'Code2';
+
     if (currentItem != null) {
       if (currentItem is Map) {
         nameCtrl.text = currentItem['name'] ?? '';
         levelCtrl.text = (currentItem['level'] ?? '').toString();
+        selectedIcon = currentItem['icon'] ?? 'Code2';
         useRichEditor = true;
       } else {
         nameCtrl.text = currentItem.toString();
@@ -290,6 +304,53 @@ class _SkillDetailScreenState extends State<SkillDetailScreen> {
                   hint: "e.g. React"),
               if (useRichEditor) ...[
                 const SizedBox(height: 16),
+                Text("ICON",
+                    style: GoogleFonts.inter(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: AppTheme.textSecondary)),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    'Code2',
+                    'Layout',
+                    'Maximize2',
+                    'Globe',
+                    'Database',
+                    'Cpu',
+                    'Layers',
+                    'Smartphone',
+                    'Terminal',
+                    'Shield',
+                    'Workflow',
+                    'Palette'
+                  ].map((iconName) {
+                    final isSelected = selectedIcon == iconName;
+                    return GestureDetector(
+                      onTap: () =>
+                          setDialogState(() => selectedIcon = iconName),
+                      child: Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: isSelected
+                              ? AppTheme.primaryColor
+                              : AppTheme.inputFillColor,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                              color: isSelected
+                                  ? AppTheme.primaryColor
+                                  : Colors.white10),
+                        ),
+                        child: Icon(_getIconData(iconName),
+                            color: isSelected ? Colors.white : Colors.white70,
+                            size: 20),
+                      ),
+                    );
+                  }).toList(),
+                ),
+                const SizedBox(height: 16),
                 CustomTextField(
                     label: "PROFICIENCY (%)",
                     controller: levelCtrl,
@@ -312,7 +373,8 @@ class _SkillDetailScreenState extends State<SkillDetailScreen> {
                 if (useRichEditor) {
                   newItem = {
                     'name': nameCtrl.text,
-                    'level': int.tryParse(levelCtrl.text) ?? 80
+                    'level': int.tryParse(levelCtrl.text) ?? 80,
+                    'icon': selectedIcon,
                   };
                 } else {
                   newItem = nameCtrl.text;
@@ -358,5 +420,36 @@ class _SkillDetailScreenState extends State<SkillDetailScreen> {
       },
       onCancel: () {},
     );
+  }
+
+  IconData _getIconData(String name) {
+    switch (name) {
+      case 'Code2':
+        return Icons.code_rounded;
+      case 'Layout':
+        return Icons.dashboard_customize_rounded;
+      case 'Maximize2':
+        return Icons.zoom_out_map_rounded;
+      case 'Globe':
+        return Icons.public_rounded;
+      case 'Database':
+        return Icons.storage_rounded;
+      case 'Cpu':
+        return Icons.memory_rounded;
+      case 'Layers':
+        return Icons.layers_rounded;
+      case 'Smartphone':
+        return Icons.smartphone_rounded;
+      case 'Terminal':
+        return Icons.terminal_rounded;
+      case 'Shield':
+        return Icons.security_rounded;
+      case 'Workflow':
+        return Icons.account_tree_rounded;
+      case 'Palette':
+        return Icons.palette_rounded;
+      default:
+        return Icons.code_rounded;
+    }
   }
 }

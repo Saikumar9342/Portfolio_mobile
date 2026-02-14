@@ -4,7 +4,6 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import '../models/inquiry.dart';
 import '../theme/app_theme.dart';
-import '../widgets/gradient_card.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class InquiriesScreen extends StatefulWidget {

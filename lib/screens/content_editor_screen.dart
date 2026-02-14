@@ -760,6 +760,14 @@ class _ContentEditorScreenState extends State<ContentEditorScreen> {
               children: controllers.entries.map((entry) {
                 final key = entry.key;
                 final controller = entry.value;
+
+                if (key.toLowerCase() == 'icon') {
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 16),
+                    child: _buildIconPickerForDialog(controller),
+                  );
+                }
+
                 return Padding(
                   padding: const EdgeInsets.only(bottom: 16),
                   child: CustomTextField(
@@ -851,16 +859,115 @@ class _ContentEditorScreenState extends State<ContentEditorScreen> {
       return {"degree": "", "institution": "", "year": ""};
     }
     if (key == 'stats') return {"label": "", "value": ""};
-    if (key == 'services') return {"id": "", "title": "", "description": ""};
+    if (key == 'services') {
+      return {"id": "", "title": "", "description": "", "icon": "Code2"};
+    }
 
     // Default template for ANY list in the SKILLS document
     if (widget.docId == 'skills') {
-      return {"name": "", "level": "90"};
+      return {"name": "", "level": "90", "icon": "Code2"};
     }
 
     if (key == 'items') return {"label": "", "href": ""};
     if (key == 'socialLinks') return {"platform": "", "url": ""};
 
     return {"title": "", "description": ""}; // Generic fallback
+  }
+
+  Widget _buildIconPickerForDialog(TextEditingController controller) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          "SELECT ICON",
+          style: GoogleFonts.inter(
+            fontSize: 12,
+            fontWeight: FontWeight.bold,
+            color: AppTheme.textSecondary,
+          ),
+        ),
+        const SizedBox(height: 8),
+        StatefulBuilder(builder: (context, setDialogState) {
+          final selectedIcon = controller.text;
+          return Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              'Code2',
+              'Layout',
+              'Maximize2',
+              'Globe',
+              'Database',
+              'Cpu',
+              'Layers',
+              'Smartphone',
+              'Terminal',
+              'Shield',
+              'Workflow',
+              'Palette'
+            ].map((iconName) {
+              final isSelected = selectedIcon == iconName;
+              return GestureDetector(
+                onTap: () {
+                  setDialogState(() {
+                    controller.text = iconName;
+                  });
+                  _markDirty();
+                },
+                child: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: isSelected
+                        ? AppTheme.primaryColor
+                        : AppTheme.inputFillColor,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color:
+                          isSelected ? AppTheme.primaryColor : Colors.white10,
+                    ),
+                  ),
+                  child: Icon(
+                    _getIconData(iconName),
+                    color: isSelected ? Colors.white : Colors.white70,
+                    size: 20,
+                  ),
+                ),
+              );
+            }).toList(),
+          );
+        }),
+      ],
+    );
+  }
+
+  IconData _getIconData(String name) {
+    switch (name) {
+      case 'Code2':
+        return Icons.code_rounded;
+      case 'Layout':
+        return Icons.dashboard_customize_rounded;
+      case 'Maximize2':
+        return Icons.zoom_out_map_rounded;
+      case 'Globe':
+        return Icons.public_rounded;
+      case 'Database':
+        return Icons.storage_rounded;
+      case 'Cpu':
+        return Icons.memory_rounded;
+      case 'Layers':
+        return Icons.layers_rounded;
+      case 'Smartphone':
+        return Icons.smartphone_rounded;
+      case 'Terminal':
+        return Icons.terminal_rounded;
+      case 'Shield':
+        return Icons.security_rounded;
+      case 'Workflow':
+        return Icons.account_tree_rounded;
+      case 'Palette':
+        return Icons.palette_rounded;
+      default:
+        return Icons.code_rounded;
+    }
   }
 }
