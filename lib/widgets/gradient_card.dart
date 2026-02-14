@@ -5,12 +5,14 @@ class GradientCard extends StatelessWidget {
   final Widget child;
   final EdgeInsets? padding;
   final VoidCallback? onTap;
+  final VoidCallback? onLongPress;
 
   const GradientCard({
     super.key,
     required this.child,
     this.padding,
     this.onTap,
+    this.onLongPress,
   });
 
   @override
@@ -42,6 +44,7 @@ class GradientCard extends StatelessWidget {
         child: InkWell(
           borderRadius: BorderRadius.circular(24),
           onTap: onTap,
+          onLongPress: onLongPress,
           child: Padding(
             padding: padding ?? const EdgeInsets.all(24),
             child: child,

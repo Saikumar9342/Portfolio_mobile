@@ -18,6 +18,64 @@ class ProjectsScreen extends StatefulWidget {
 
 class _ProjectsScreenState extends State<ProjectsScreen> {
   final FirestoreService _service = FirestoreService();
+  final Set<String> _selectedProjectIds = {};
+  bool _isSelectionMode = false;
+
+  void _enterSelectionMode(String docId) {
+    setState(() {
+      _isSelectionMode = true;
+      _selectedProjectIds.add(docId);
+    });
+  }
+
+  void _exitSelectionMode() {
+    setState(() {
+      _isSelectionMode = false;
+      _selectedProjectIds.clear();
+    });
+  }
+
+  void _toggleSelection(String docId) {
+    setState(() {
+      if (_selectedProjectIds.contains(docId)) {
+        _selectedProjectIds.remove(docId);
+        if (_selectedProjectIds.isEmpty) {
+          _exitSelectionMode();
+        }
+      } else {
+        _selectedProjectIds.add(docId);
+      }
+    });
+  }
+
+  Future<void> _deleteSelectedProjects() async {
+    ActionDialog.show(
+      context,
+      title: "Delete Projects?",
+      message:
+          "Are you sure you want to delete ${_selectedProjectIds.length} projects? This action cannot be undone.",
+      confirmLabel: "DELETE ALL",
+      type: ActionDialogType.danger,
+      onConfirm: () async {
+        final idsToDelete = List<String>.from(_selectedProjectIds);
+        // Show loading or just process
+        for (final id in idsToDelete) {
+          await _service.deleteProject(id);
+        }
+
+        if (mounted) {
+          _exitSelectionMode();
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('${idsToDelete.length} projects deleted'),
+              backgroundColor: AppTheme.primaryColor,
+            ),
+          );
+        }
+      },
+      onCancel: () {},
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -26,20 +84,37 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
       body: CustomScrollView(
         slivers: [
           SliverAppBar.large(
-            title: Text('Projects',
-                style: GoogleFonts.outfit(fontWeight: FontWeight.bold)),
+            title: Text(
+              _isSelectionMode
+                  ? '${_selectedProjectIds.length} Selected'
+                  : 'Projects',
+              style: GoogleFonts.outfit(fontWeight: FontWeight.bold),
+            ),
             backgroundColor: AppTheme.scaffoldBackgroundColor,
             surfaceTintColor: Colors.transparent,
+            leading: _isSelectionMode
+                ? IconButton(
+                    icon: const Icon(Icons.close),
+                    onPressed: _exitSelectionMode,
+                  )
+                : null,
             actions: [
-              IconButton(
-                icon: const Icon(Icons.add_circle_outline,
-                    size: 32, color: AppTheme.primaryColor),
-                onPressed: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                      builder: (_) => const ProjectEditorScreen()),
+              if (_isSelectionMode)
+                IconButton(
+                  icon: const Icon(Icons.delete_outline,
+                      size: 28, color: AppTheme.errorColor),
+                  onPressed: _deleteSelectedProjects,
+                )
+              else
+                IconButton(
+                  icon: const Icon(Icons.add_circle_outline,
+                      size: 32, color: AppTheme.primaryColor),
+                  onPressed: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (_) => const ProjectEditorScreen()),
+                  ),
                 ),
-              ),
               const SizedBox(width: 16),
             ],
           ),
@@ -107,16 +182,26 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
           (context, index) {
             final doc = docs[index];
             final data = doc.data() as Map<String, dynamic>;
+            final isSelected = _selectedProjectIds.contains(doc.id);
+
             return _ProjectCard(
               docId: doc.id,
               data: data,
-              onEdit: () => Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) =>
-                      ProjectEditorScreen(docId: doc.id, initialData: data),
-                ),
-              ),
+              isSelected: isSelected,
+              onTap: () {
+                if (_isSelectionMode) {
+                  _toggleSelection(doc.id);
+                } else {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) =>
+                          ProjectEditorScreen(docId: doc.id, initialData: data),
+                    ),
+                  );
+                }
+              },
+              onLongPress: () => _enterSelectionMode(doc.id),
               onDelete: () => _confirmDelete(context, doc.id),
             );
           },
@@ -153,107 +238,144 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
 class _ProjectCard extends StatelessWidget {
   final String docId;
   final Map<String, dynamic> data;
-  final VoidCallback onEdit;
+  final VoidCallback onTap;
+  final VoidCallback onLongPress;
   final VoidCallback onDelete;
+  final bool isSelected;
 
-  const _ProjectCard(
-      {required this.docId,
-      required this.data,
-      required this.onEdit,
-      required this.onDelete});
+  const _ProjectCard({
+    required this.docId,
+    required this.data,
+    required this.onTap,
+    required this.onLongPress,
+    required this.onDelete,
+    this.isSelected = false,
+  });
+
   @override
   Widget build(BuildContext context) {
-    return GradientCard(
-      padding: EdgeInsets.zero,
-      onTap: onEdit,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          if (data['imageUrl'] != null &&
-              data['imageUrl'].toString().startsWith('http'))
-            Hero(
-              tag: 'project_image_$docId',
-              child: ClipRRect(
-                borderRadius:
-                    const BorderRadius.vertical(top: Radius.circular(24)),
-                child: Image.network(
-                  data['imageUrl'],
-                  height: 180,
-                  width: double.infinity,
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) => Container(
-                    height: 180,
-                    color: Colors.white10,
-                    alignment: Alignment.center,
-                    child: const Icon(Icons.broken_image,
-                        size: 48, color: Colors.white24),
-                  ),
-                ),
-              ),
+    return Stack(
+      children: [
+        GradientCard(
+          padding: EdgeInsets.zero,
+          onTap: onTap,
+          onLongPress: onLongPress,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(24),
+              border: isSelected
+                  ? Border.all(color: AppTheme.primaryColor, width: 2)
+                  : Border.all(color: Colors.transparent),
             ),
-          Padding(
-            padding: const EdgeInsets.all(20),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Expanded(
-                      child: Text(
-                        data['title'] ?? 'Untitled',
-                        style: GoogleFonts.outfit(
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                            color: AppTheme.textPrimary),
+                if (data['imageUrl'] != null &&
+                    data['imageUrl'].toString().startsWith('http'))
+                  Hero(
+                    tag: 'project_image_$docId',
+                    child: ClipRRect(
+                      borderRadius:
+                          const BorderRadius.vertical(top: Radius.circular(24)),
+                      child: Image.network(
+                        data['imageUrl'],
+                        height: 180,
+                        width: double.infinity,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => Container(
+                          height: 180,
+                          color: Colors.white10,
+                          alignment: Alignment.center,
+                          child: const Icon(Icons.broken_image,
+                              size: 48, color: Colors.white24),
+                        ),
                       ),
                     ),
-                    IconButton(
-                      icon: const Icon(Icons.delete_outline,
-                          color: AppTheme.errorColor),
-                      onPressed: onDelete,
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  data['description'] ?? 'No description',
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: GoogleFonts.inter(
-                      fontSize: 14, color: AppTheme.textSecondary),
-                ),
-                const SizedBox(height: 16),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: (data['techStack'] as List<dynamic>? ?? [])
-                      .take(3)
-                      .map((tag) {
-                    return Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: AppTheme.primaryColor.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(
-                            color: AppTheme.primaryColor.withOpacity(0.2)),
+                  ),
+                Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Expanded(
+                            child: Text(
+                              data['title'] ?? 'Untitled',
+                              style: GoogleFonts.outfit(
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.bold,
+                                  color: AppTheme.textPrimary),
+                            ),
+                          ),
+                          if (!isSelected) // Hide individual delete if selecting
+                            IconButton(
+                              icon: const Icon(Icons.delete_outline,
+                                  color: AppTheme.errorColor),
+                              onPressed: onDelete,
+                            ),
+                        ],
                       ),
-                      child: Text(
-                        tag.toString(),
+                      const SizedBox(height: 8),
+                      Text(
+                        data['description'] ?? 'No description',
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
                         style: GoogleFonts.inter(
-                            fontSize: 12,
-                            color: AppTheme.primaryColor,
-                            fontWeight: FontWeight.w500),
+                            fontSize: 14, color: AppTheme.textSecondary),
                       ),
-                    );
-                  }).toList(),
+                      const SizedBox(height: 16),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: (data['techStack'] as List<dynamic>? ?? [])
+                            .take(3)
+                            .map((tag) {
+                          return Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 10, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: AppTheme.primaryColor.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(
+                                  color:
+                                      AppTheme.primaryColor.withOpacity(0.2)),
+                            ),
+                            child: Text(
+                              tag.toString(),
+                              style: GoogleFonts.inter(
+                                  fontSize: 12,
+                                  color: AppTheme.primaryColor,
+                                  fontWeight: FontWeight.w500),
+                            ),
+                          );
+                        }).toList(),
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),
           ),
-        ],
-      ),
+        ),
+        if (isSelected)
+          Positioned(
+            top: 10,
+            right: 10,
+            child: Container(
+              decoration: const BoxDecoration(
+                color: AppTheme.primaryColor,
+                shape: BoxShape.circle,
+              ),
+              child: const Padding(
+                padding: EdgeInsets.all(8.0),
+                child: Icon(Icons.check, color: Colors.white, size: 20),
+              ),
+            ),
+          ),
+      ],
     );
   }
 }

@@ -110,23 +110,38 @@ class _ResumeUploadScreenState extends State<ResumeUploadScreen> {
     final knownSkills = [
       'Flutter',
       'React',
+      'React Native',
+      'Angular',
+      'Next.js',
       'Node.js',
+      'Express.js',
       'TypeScript',
+      'JavaScript',
       'Dart',
       'Firebase',
+      'Supabase',
       'AWS',
+      'GCP',
+      'Azure',
       'Python',
       'Java',
+      'Kotlin',
+      'Swift',
+      'Spring Boot',
+      'Microservices',
+      'REST API',
       'C++',
       'SQL',
       'NoSQL',
       'Git',
       'Docker',
       'Kubernetes',
-      'Next.js',
       'Tailwind',
       'MongoDB',
-      'PostgreSQL'
+      'PostgreSQL',
+      'MySQL',
+      'Redis',
+      'Apache'
     ];
 
     final foundSkills = knownSkills
@@ -166,124 +181,357 @@ class _ResumeUploadScreenState extends State<ResumeUploadScreen> {
 
   List<Map<String, dynamic>> _extractProjects(
       String text, List<String> knownSkills) {
-    List<Map<String, dynamic>> projects = [];
-    String cleanText = text.replaceAll('\r\n', '\n');
+    final cleanText = text
+        .replaceAll('\r\n', '\n')
+        .replaceAll('\r', '\n')
+        .replaceAll(RegExp(r'[ \t]+'), ' ')
+        .replaceAll(RegExp(r'\n{3,}'), '\n\n')
+        .trim();
 
-    // Robust regex with better boundary detection
+    final candidates = <Map<String, dynamic>>[];
+    candidates.addAll(
+        _extractProjectsFromTitleEnvironmentBlocks(cleanText, knownSkills));
+    candidates.addAll(
+        _extractProjectsFromLabeledProjectBlocks(cleanText, knownSkills));
+    candidates
+        .addAll(_extractProjectsFromProjectSections(cleanText, knownSkills));
+
+    final deduped = <String, Map<String, dynamic>>{};
+    for (final candidate in candidates) {
+      final title = (candidate['title'] as String? ?? '').trim();
+      if (title.isEmpty || _looksLikeSectionHeading(title)) continue;
+
+      final key = title.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), '');
+      if (key.isEmpty) continue;
+
+      final existing = deduped[key];
+      if (existing == null ||
+          _projectQualityScore(candidate) > _projectQualityScore(existing)) {
+        deduped[key] = candidate;
+      }
+    }
+
+    final projects = deduped.values.toList();
+    projects.sort(
+      (a, b) => _projectQualityScore(b).compareTo(_projectQualityScore(a)),
+    );
+    return projects.take(12).toList();
+  }
+
+  List<Map<String, dynamic>> _extractProjectsFromTitleEnvironmentBlocks(
+      String cleanText, List<String> knownSkills) {
+    final projects = <Map<String, dynamic>>[];
     final projectRegex = RegExp(
-      r'Title:\s*([\s\S]+?)\s*Environment:\s*([\s\S]+?)\s*Description:\s*([\s\S]+?)(?=Roles and Responsibilities:|Title:|@\s+Finsol:|$)',
+      r'Title:\s*([\s\S]+?)\s*Environment:\s*([\s\S]+?)\s*Description:\s*([\s\S]+?)(?=Roles and Responsibilities:|Title:|(?:\n\s*[A-Z][A-Z &/]{3,}\n)|$)',
       caseSensitive: false,
     );
 
-    final matches = projectRegex.allMatches(cleanText);
+    for (final match in projectRegex.allMatches(cleanText)) {
+      final block = match.group(0) ?? '';
+      final title = _sanitizeTitle(match.group(1) ?? '');
+      if (title.isEmpty) continue;
 
-    for (final match in matches) {
-      String block = match.group(0) ?? '';
-      String title = match.group(1)?.replaceAll('\n', ' ').trim() ?? 'Untitled';
-      String environment = match.group(2)?.replaceAll('\n', ' ').trim() ?? '';
-      String rawDescription = match.group(3)?.trim() ?? '';
+      final environment = _cleanNarrativeText(match.group(2) ?? '');
+      final fullDescription = _cleanNarrativeText(match.group(3) ?? '');
+      if (fullDescription.length < 20) continue;
 
-      // Extract Role if present in the block
-      String role = "Software Engineer";
-      final roleMatch =
-          RegExp(r'Role:\s*([^\n]+)', caseSensitive: false).firstMatch(block);
-      if (roleMatch != null) {
-        role = roleMatch.group(1)!.trim();
-      }
-
-      // 1. Separate Short Description vs Full Narrative
-      String description = "";
-      String fullDescription = rawDescription;
-
-      // If there's a clear "Roles and Responsibilities" or bullet section
-      final parts = rawDescription
-          .split(RegExp(r'Roles and Responsibilities:', caseSensitive: false));
-      if (parts.length > 1) {
-        description = parts[0].trim();
-        fullDescription =
-            "${parts[0].trim()}\n\nKey Responsibilities:\n${parts[1].trim()}";
-      } else {
-        // Heuristic: First 2 sentences as short description
-        final sentences = rawDescription.split(RegExp(r'(?<=\. )'));
-        if (sentences.isNotEmpty) {
-          description = sentences.take(2).join(' ').trim();
-          if (description.length > 150) {
-            description = '${description.substring(0, 147)}...';
-          }
-        } else {
-          description = rawDescription;
-        }
-      }
-
-      // Clean up description formatting
-      description = description
-          .replaceAll(RegExp(r'^\s*[-*]\s*', multiLine: true), '')
-          .replaceAll(RegExp(r'\n+'), ' ')
-          .trim();
-
-      // Split environment into tech stack
-      List<String> stack = environment
-          .split(RegExp(r'[,\n]'))
-          .map((e) => e.trim())
-          .where((e) => e.isNotEmpty && e.length < 30)
-          .toList();
-
-      if (stack.isEmpty) stack = ['Engineering'];
-
-      projects.add({
-        'title': title,
-        'role': role,
-        'description': description,
-        'fullDescription': fullDescription,
-        'techStack': stack,
-        'category': 'Professional Work',
-        'imageUrl': '',
-        'liveLink': '',
-        'githubLink': '',
-      });
+      projects.add(_toProjectMap(
+        title: title,
+        role: _extractRole(block),
+        description: _buildShortDescription(fullDescription),
+        fullDescription: fullDescription,
+        techStack: _extractTechStack('$environment\n$block', knownSkills),
+        category: _detectProjectCategory(block),
+      ));
     }
 
-    // Supplemental logic: Fill any gaps from blocks
-    final blocks = cleanText.split(RegExp(r'\n\s*\n'));
-    for (var block in blocks) {
-      if (block.length < 50) continue;
-      final lines =
-          block.split('\n').where((l) => l.trim().isNotEmpty).toList();
-      if (lines.isEmpty) continue;
+    return projects;
+  }
 
-      String potentialTitle = lines.first.trim();
-      if (!projects.any((p) =>
-          p['title'].toLowerCase().contains(potentialTitle.toLowerCase()) ||
-          potentialTitle.toLowerCase().contains(p['title'].toLowerCase()))) {
-        if (block.toLowerCase().contains('title:') ||
-            block.toLowerCase().contains('project')) {
-          if (potentialTitle.length < 50 &&
-              !potentialTitle.toLowerCase().contains('experience')) {
-            String blockText = lines.length > 1
-                ? lines.sublist(1).join(' ').trim()
-                : block.trim();
+  List<Map<String, dynamic>> _extractProjectsFromLabeledProjectBlocks(
+      String cleanText, List<String> knownSkills) {
+    final projects = <Map<String, dynamic>>[];
+    final projectRegex = RegExp(
+      r'(?:^|\n)\s*(?:Project(?:\s*Name)?|Project Title|Title)\s*[:\-]\s*([^\n]{3,100})\n([\s\S]{30,900}?)(?=(?:\n\s*(?:Project(?:\s*Name)?|Project Title|Title)\s*[:\-])|(?:\n\s*[A-Z][A-Z &/]{3,}\n)|$)',
+      caseSensitive: false,
+      multiLine: true,
+    );
 
-            projects.add({
-              'title': potentialTitle,
-              'role': 'Developer',
-              'description': blockText.length > 150
-                  ? '${blockText.substring(0, 147)}...'
-                  : blockText,
-              'fullDescription': blockText,
-              'techStack': knownSkills
-                  .where((s) => block.toLowerCase().contains(s.toLowerCase()))
-                  .toList(),
-              'category': 'Selected Project',
-              'imageUrl': '',
-              'liveLink': '',
-              'githubLink': '',
-            });
-          }
-        }
+    for (final match in projectRegex.allMatches(cleanText)) {
+      final title = _sanitizeTitle(match.group(1) ?? '');
+      if (title.isEmpty) continue;
+
+      final block = _cleanNarrativeText(match.group(2) ?? '');
+      if (block.length < 20) continue;
+
+      projects.add(_toProjectMap(
+        title: title,
+        role: _extractRole(block),
+        description: _buildShortDescription(block),
+        fullDescription: block,
+        techStack: _extractTechStack(block, knownSkills),
+        category: _detectProjectCategory(block),
+      ));
+    }
+
+    return projects;
+  }
+
+  List<Map<String, dynamic>> _extractProjectsFromProjectSections(
+      String cleanText, List<String> knownSkills) {
+    final projects = <Map<String, dynamic>>[];
+    final sectionRegex = RegExp(
+      r'(?:^|\n)\s*(?:PROJECTS?|SELECTED PROJECTS?|KEY PROJECTS?|PROJECT EXPERIENCE|ACADEMIC PROJECTS?)\s*:?\s*\n([\s\S]{60,2600}?)(?=(?:\n\s*(?:EXPERIENCE|WORK EXPERIENCE|PROFESSIONAL EXPERIENCE|EDUCATION|SKILLS|CERTIFICATIONS|ACHIEVEMENTS|LANGUAGES|INTERESTS|CONTACT)\s*:?\s*\n)|$)',
+      caseSensitive: false,
+      multiLine: true,
+    );
+
+    for (final section in sectionRegex.allMatches(cleanText)) {
+      final sectionBody = section.group(1) ?? '';
+      for (final block in _splitProjectBlocks(sectionBody)) {
+        final title = _extractTitleFromBlock(block);
+        if (title.isEmpty) continue;
+
+        final fullDescription = _extractDescriptionFromBlock(block);
+        if (fullDescription.length < 20) continue;
+
+        projects.add(_toProjectMap(
+          title: title,
+          role: _extractRole(block),
+          description: _buildShortDescription(fullDescription),
+          fullDescription: fullDescription,
+          techStack: _extractTechStack(block, knownSkills),
+          category: _detectProjectCategory(block),
+        ));
       }
     }
 
     return projects;
+  }
+
+  List<String> _splitProjectBlocks(String sectionText) {
+    final normalized = sectionText.replaceAll(RegExp(r'\n{3,}'), '\n\n').trim();
+    if (normalized.isEmpty) return [];
+
+    final blankBlocks = normalized
+        .split(RegExp(r'\n\s*\n'))
+        .map((block) => block.trim())
+        .where((block) => block.length > 30)
+        .toList();
+    if (blankBlocks.length > 1) return blankBlocks;
+
+    return normalized
+        .split(RegExp(r'(?=\n\s*(?:[-*]|\d+[\).]))'))
+        .map((block) => block.trim())
+        .where((block) => block.length > 30)
+        .toList();
+  }
+
+  String _extractTitleFromBlock(String block) {
+    final lines = block
+        .split('\n')
+        .map((line) => line.trim())
+        .where((line) => line.isNotEmpty)
+        .toList();
+    if (lines.isEmpty) return '';
+
+    var firstLine = lines.first
+        .replaceFirst(RegExp(r'^[-*]\s*'), '')
+        .replaceFirst(RegExp(r'^\d+[\).]\s*'), '')
+        .trim();
+
+    final labeledTitle = RegExp(
+      r'^(?:project(?:\s*name)?|project title|title)\s*[:\-]\s*(.+)$',
+      caseSensitive: false,
+    ).firstMatch(firstLine);
+
+    if (labeledTitle != null) {
+      return _sanitizeTitle(labeledTitle.group(1) ?? '');
+    }
+
+    firstLine = firstLine.split(RegExp(r'\s+\|\s+|\s+-\s+')).first.trim();
+    return _sanitizeTitle(firstLine);
+  }
+
+  String _extractDescriptionFromBlock(String block) {
+    final lines = block
+        .split('\n')
+        .map((line) => line.trim())
+        .where((line) => line.isNotEmpty)
+        .toList();
+    if (lines.isEmpty) return '';
+
+    final bodyLines = lines.skip(1).where((line) {
+      return !RegExp(
+        r'^(?:project(?:\s*name)?|project title|title|role|position|duration|client|team|environment|technology|tech stack|tools?|stack)\s*[:\-]',
+        caseSensitive: false,
+      ).hasMatch(line);
+    }).toList();
+
+    final body = bodyLines.isNotEmpty ? bodyLines.join(' ') : lines.join(' ');
+    return _cleanNarrativeText(body);
+  }
+
+  List<String> _extractTechStack(String block, List<String> knownSkills) {
+    final collected = <String>[];
+
+    final labeledMatches = RegExp(
+      r'(?:Environment|Technology|Tech Stack|Tools?|Stack)\s*[:\-]\s*([^\n]+)',
+      caseSensitive: false,
+    ).allMatches(block);
+
+    for (final match in labeledMatches) {
+      final raw = match.group(1) ?? '';
+      final parts = raw.split(RegExp(r'[,/|]'));
+      for (final token in parts) {
+        final value = token.trim();
+        if (_isValidTechToken(value)) collected.add(value);
+      }
+    }
+
+    final lowerBlock = block.toLowerCase();
+    for (final skill in knownSkills) {
+      if (lowerBlock.contains(skill.toLowerCase())) {
+        collected.add(skill);
+      }
+    }
+
+    final unique = <String>[];
+    final seen = <String>{};
+    for (final item in collected) {
+      final key = item.toLowerCase();
+      if (seen.contains(key)) continue;
+      seen.add(key);
+      unique.add(item);
+    }
+
+    if (unique.isEmpty) unique.add('Engineering');
+    return unique.take(8).toList();
+  }
+
+  bool _isValidTechToken(String value) {
+    if (value.isEmpty || value.length > 30) return false;
+    if (RegExp(r'^(and|with|using|for)$', caseSensitive: false)
+        .hasMatch(value)) {
+      return false;
+    }
+    return RegExp(r'^[a-zA-Z0-9.+# -]+$').hasMatch(value);
+  }
+
+  String _extractRole(String block) {
+    final roleMatch = RegExp(
+      r'(?:Role|Position)\s*[:\-]\s*([^\n,|]+)',
+      caseSensitive: false,
+    ).firstMatch(block);
+    if (roleMatch != null) {
+      final role = _cleanNarrativeText(roleMatch.group(1) ?? '');
+      if (role.isNotEmpty) return role;
+    }
+    return 'Software Engineer';
+  }
+
+  String _buildShortDescription(String fullText) {
+    final clean = _cleanNarrativeText(fullText);
+    if (clean.length <= 180) return clean;
+
+    final sentences = clean.split('. ');
+    if (sentences.length > 1) {
+      var summary = sentences.take(2).join('. ').trim();
+      if (!summary.endsWith('.')) summary = '$summary.';
+      if (summary.length <= 180) return summary;
+      return '${summary.substring(0, 177).trim()}...';
+    }
+
+    return '${clean.substring(0, 177).trim()}...';
+  }
+
+  String _cleanNarrativeText(String value) {
+    return value
+        .replaceAll(RegExp(r'^\s*[-*]\s*', multiLine: true), '')
+        .replaceAll('\n', ' ')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+  }
+
+  String _sanitizeTitle(String value) {
+    var title = value
+        .replaceFirst(
+          RegExp(
+            r'^(?:project(?:\s*name)?|project title|title)\s*[:\-]\s*',
+            caseSensitive: false,
+          ),
+          '',
+        )
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+
+    title = title.replaceAll(RegExp(r'^[`"]+|[`",.;:]+$'), '').trim();
+    if (title.length > 90) {
+      title = title.substring(0, 90).trim();
+    }
+    return title;
+  }
+
+  String _detectProjectCategory(String text) {
+    final lower = text.toLowerCase();
+    if (lower.contains('academic') || lower.contains('university')) {
+      return 'Academic Project';
+    }
+    if (lower.contains('personal') || lower.contains('side project')) {
+      return 'Personal Project';
+    }
+    return 'Professional Work';
+  }
+
+  bool _looksLikeSectionHeading(String value) {
+    final normalized = value.toLowerCase();
+    const headings = {
+      'experience',
+      'work experience',
+      'professional experience',
+      'summary',
+      'profile summary',
+      'education',
+      'skills',
+      'certifications',
+      'contact',
+      'responsibilities',
+    };
+    if (headings.contains(normalized)) return true;
+    return normalized.contains('roles and responsibilities');
+  }
+
+  int _projectQualityScore(Map<String, dynamic> project) {
+    final fullDescriptionLength =
+        (project['fullDescription'] as String? ?? '').length;
+    final shortDescriptionLength =
+        (project['description'] as String? ?? '').length;
+    final techCount =
+        (project['techStack'] as List<dynamic>? ?? const []).length;
+    return (fullDescriptionLength ~/ 10) +
+        (shortDescriptionLength ~/ 20) +
+        (techCount * 5);
+  }
+
+  Map<String, dynamic> _toProjectMap({
+    required String title,
+    required String role,
+    required String description,
+    required String fullDescription,
+    required List<String> techStack,
+    required String category,
+  }) {
+    return {
+      'title': title,
+      'role': role,
+      'description': description,
+      'fullDescription': fullDescription,
+      'techStack': techStack,
+      'category': category,
+      'imageUrl': '',
+      'liveLink': '',
+      'githubLink': '',
+    };
   }
 
   Future<void> _saveToFirestore() async {

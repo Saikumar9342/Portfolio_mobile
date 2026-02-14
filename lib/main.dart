@@ -9,6 +9,14 @@ import 'theme/app_theme.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+
+  // Fix for: Ignoring header X-Firebase-Locale because its value was null
+  try {
+    await FirebaseAuth.instance.setLanguageCode('en');
+  } catch (e) {
+    debugPrint("Failed to set language code: $e");
+  }
+
   runApp(const MyApp());
 }
 
