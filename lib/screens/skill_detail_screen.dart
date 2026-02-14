@@ -10,11 +10,13 @@ import '../widgets/action_dialog.dart';
 class SkillDetailScreen extends StatefulWidget {
   final String sectionId;
   final String sectionTitleKey;
+  final String? languageCode;
 
   const SkillDetailScreen({
     super.key,
     required this.sectionId,
     required this.sectionTitleKey,
+    this.languageCode,
   });
 
   @override
@@ -35,7 +37,9 @@ class _SkillDetailScreenState extends State<SkillDetailScreen> {
 
   Future<void> _loadData() async {
     try {
-      final doc = await _service.streamContent('skills').first;
+      final doc = await _service
+          .streamContent('skills', languageCode: widget.languageCode)
+          .first;
       if (doc.exists) {
         final data = doc.data()!;
         setState(() {
@@ -59,7 +63,8 @@ class _SkillDetailScreenState extends State<SkillDetailScreen> {
         updates[widget.sectionTitleKey] = newTitle;
       }
 
-      await _service.updateContent('skills', updates);
+      await _service.updateContent('skills', updates,
+          languageCode: widget.languageCode);
 
       if (mounted) {
         setState(() {

@@ -12,7 +12,8 @@ import '../widgets/gradient_card.dart';
 import '../widgets/action_dialog.dart';
 
 class ProjectsScreen extends StatefulWidget {
-  const ProjectsScreen({super.key});
+  final String? languageCode;
+  const ProjectsScreen({super.key, this.languageCode});
 
   @override
   State<ProjectsScreen> createState() => _ProjectsScreenState();
@@ -62,7 +63,7 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
         final idsToDelete = List<String>.from(_selectedProjectIds);
         // Show loading or just process
         for (final id in idsToDelete) {
-          await _service.deleteProject(id);
+          await _service.deleteProject(id, languageCode: widget.languageCode);
         }
 
         if (mounted) {
@@ -118,14 +119,15 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
                   onPressed: () => Navigator.push(
                     context,
                     MaterialPageRoute(
-                        builder: (_) => const ProjectEditorScreen()),
+                        builder: (_) => ProjectEditorScreen(
+                            languageCode: widget.languageCode)),
                   ),
                 ),
               const SizedBox(width: 16),
             ],
           ),
           StreamBuilder<QuerySnapshot>(
-            stream: _service.streamProjects(),
+            stream: _service.streamProjects(languageCode: widget.languageCode),
             builder: (context, snapshot) {
               if (snapshot.hasError) {
                 return _buildErrorView(snapshot.error);
@@ -220,8 +222,10 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (_) =>
-                          ProjectEditorScreen(docId: doc.id, initialData: data),
+                      builder: (_) => ProjectEditorScreen(
+                          docId: doc.id,
+                          initialData: data,
+                          languageCode: widget.languageCode),
                     ),
                   );
                 }
@@ -245,7 +249,7 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
       confirmLabel: "DELETE",
       type: ActionDialogType.danger,
       onConfirm: () async {
-        await _service.deleteProject(docId);
+        await _service.deleteProject(docId, languageCode: widget.languageCode);
         if (context.mounted) {
           ActionDialog.show(
             context,
@@ -494,8 +498,10 @@ class _ProjectAction extends StatelessWidget {
 class ProjectEditorScreen extends StatefulWidget {
   final String? docId;
   final Map<String, dynamic>? initialData;
+  final String? languageCode;
 
-  const ProjectEditorScreen({super.key, this.docId, this.initialData});
+  const ProjectEditorScreen(
+      {super.key, this.docId, this.initialData, this.languageCode});
 
   @override
   State<ProjectEditorScreen> createState() => _ProjectEditorScreenState();
@@ -584,9 +590,11 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
 
       try {
         if (widget.docId != null) {
-          await FirestoreService().updateProject(widget.docId!, data);
+          await FirestoreService().updateProject(widget.docId!, data,
+              languageCode: widget.languageCode);
         } else {
-          await FirestoreService().addProject(data);
+          await FirestoreService()
+              .addProject(data, languageCode: widget.languageCode);
         }
         if (mounted) {
           setState(() => _isDirty = false);

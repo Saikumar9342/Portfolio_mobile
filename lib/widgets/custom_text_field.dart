@@ -10,7 +10,11 @@ class CustomTextField extends StatelessWidget {
   final TextInputType keyboardType;
   final String? Function(String?)? validator;
   final IconData? prefixIcon;
+  final IconData? suffixIcon;
+  final VoidCallback? onSuffixTap;
   final bool obscureText;
+  final bool enabled;
+  final void Function(String)? onChanged;
 
   const CustomTextField({
     super.key,
@@ -21,7 +25,11 @@ class CustomTextField extends StatelessWidget {
     this.keyboardType = TextInputType.text,
     this.validator,
     this.prefixIcon,
+    this.suffixIcon,
+    this.onSuffixTap,
     this.obscureText = false,
+    this.enabled = true,
+    this.onChanged,
   });
 
   @override
@@ -44,6 +52,7 @@ class CustomTextField extends StatelessWidget {
           ),
         TextFormField(
           controller: controller,
+          enabled: enabled,
           maxLines: isMultiline ? 5 : 1,
           keyboardType: keyboardType,
           style: const TextStyle(color: Colors.white),
@@ -55,10 +64,18 @@ class CustomTextField extends StatelessWidget {
                     color: AppTheme.textSecondary.withValues(alpha: 0.5),
                     size: 20)
                 : null,
+            suffixIcon: suffixIcon != null
+                ? IconButton(
+                    icon: Icon(suffixIcon,
+                        color: AppTheme.primaryColor, size: 20),
+                    onPressed: onSuffixTap,
+                  )
+                : null,
             filled: true,
             fillColor: AppTheme.inputFillColor,
           ),
           validator: validator,
+          onChanged: onChanged,
         ),
       ],
     );

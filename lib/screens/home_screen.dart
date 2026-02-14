@@ -9,6 +9,7 @@ import 'projects_screen.dart';
 import 'skills_manager_screen.dart';
 import 'resume_upload_screen.dart';
 import 'profile_screen.dart';
+import 'language_list_screen.dart';
 import 'inquiries_screen.dart';
 import '../services/firestore_service.dart';
 import '../widgets/brand_logo.dart';
@@ -430,13 +431,21 @@ class _HomeScreenState extends State<HomeScreen> {
                                 builder: (_) => const SkillsManagerScreen()))),
                     _buildAnimatedContentItem(
                         4,
+                        "Languages",
+                        Icons.translate_rounded,
+                        () => Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                                builder: (_) => const LanguageListScreen()))),
+                    _buildAnimatedContentItem(
+                        5,
                         "Contact Info",
                         Icons.email_outlined,
                         () => _navToEditor(context, 'Contact Info', 'contact')),
-                    _buildAnimatedContentItem(5, "Navbar", Icons.menu_rounded,
+                    _buildAnimatedContentItem(6, "Navbar", Icons.menu_rounded,
                         () => _navToEditor(context, 'Navbar', 'navbar')),
                     _buildAnimatedContentItem(
-                        6,
+                        7,
                         "Projects Page",
                         Icons.work_outline_rounded,
                         () => _navToEditor(

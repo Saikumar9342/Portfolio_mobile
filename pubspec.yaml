@@ -24,6 +24,7 @@ dependencies:
   flutter_secure_storage: ^9.0.0
   google_sign_in: ^6.1.6
   url_launcher: ^6.2.5
+  translator: ^1.0.4+1
 
 dev_dependencies:
   flutter_test:

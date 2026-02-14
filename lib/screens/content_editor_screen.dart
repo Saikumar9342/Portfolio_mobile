@@ -21,11 +21,13 @@ class FieldData {
 class ContentEditorScreen extends StatefulWidget {
   final String docId;
   final String title;
+  final String? languageCode;
 
   const ContentEditorScreen({
     super.key,
     required this.docId,
     required this.title,
+    this.languageCode,
   });
 
   @override
@@ -110,8 +112,9 @@ class _ContentEditorScreenState extends State<ContentEditorScreen> {
 
   Future<void> _loadData() async {
     try {
-      final snapshot =
-          await FirestoreService().streamContent(widget.docId).first;
+      final snapshot = await FirestoreService()
+          .streamContent(widget.docId, languageCode: widget.languageCode)
+          .first;
 
       Map<String, dynamic> fetchedData = {};
       if (snapshot.exists && snapshot.data() != null) {
@@ -338,7 +341,8 @@ class _ContentEditorScreenState extends State<ContentEditorScreen> {
       }
 
       try {
-        await FirestoreService().updateContent(widget.docId, data);
+        await FirestoreService().updateContent(widget.docId, data,
+            languageCode: widget.languageCode);
         if (mounted) {
           setState(() => _isDirty = false);
           ActionDialog.show(

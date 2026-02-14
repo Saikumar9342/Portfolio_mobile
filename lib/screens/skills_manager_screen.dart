@@ -9,14 +9,16 @@ import '../widgets/primary_button.dart';
 import 'skill_detail_screen.dart';
 
 class SkillsManagerScreen extends StatelessWidget {
-  const SkillsManagerScreen({super.key});
+  final String? languageCode;
+  const SkillsManagerScreen({super.key, this.languageCode});
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppTheme.scaffoldBackgroundColor,
       body: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-        stream: FirestoreService().streamContent('skills'),
+        stream: FirestoreService()
+            .streamContent('skills', languageCode: languageCode),
         builder: (context, snapshot) {
           if (snapshot.hasError) {
             return Center(child: Text('Error: ${snapshot.error}'));
@@ -148,7 +150,9 @@ class SkillsManagerScreen extends StatelessWidget {
           context,
           MaterialPageRoute(
             builder: (_) => SkillDetailScreen(
-                sectionId: section.id, sectionTitleKey: section.titleKey),
+                sectionId: section.id,
+                sectionTitleKey: section.titleKey,
+                languageCode: languageCode),
           ),
         ),
         padding: const EdgeInsets.all(20),
@@ -218,10 +222,13 @@ class SkillsManagerScreen extends StatelessWidget {
               onPressed: () => Navigator.pop(ctx), child: const Text("Cancel")),
           TextButton(
             onPressed: () async {
-              await FirestoreService().updateContent('skills', {
-                'title': titleCtrl.text,
-                'description': descCtrl.text,
-              });
+              await FirestoreService().updateContent(
+                  'skills',
+                  {
+                    'title': titleCtrl.text,
+                    'description': descCtrl.text,
+                  },
+                  languageCode: languageCode);
               if (ctx.mounted) Navigator.pop(ctx);
             },
             child: const Text("Save",
@@ -264,8 +271,9 @@ class SkillsManagerScreen extends StatelessWidget {
               final key = keyCtrl.text.trim().toLowerCase();
               final title = titleCtrl.text.trim();
               if (key.isNotEmpty && title.isNotEmpty) {
-                await FirestoreService()
-                    .updateContent('skills', {key: [], '${key}Title': title});
+                await FirestoreService().updateContent(
+                    'skills', {key: [], '${key}Title': title},
+                    languageCode: languageCode);
                 if (ctx.mounted) Navigator.pop(ctx);
               }
             },
