@@ -1,3 +1,6 @@
+import 'dart:convert';
+import 'package:flutter/foundation.dart';
+import 'package:http/http.dart' as http;
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class LanguageSearchService {
@@ -8,14 +11,6 @@ class LanguageSearchService {
   Future<Map<String, String>?> findLanguageByName(String name) async {
     final query = name.trim().toLowerCase();
     if (query.isEmpty) return null;
-
-    // Hard-coded priority fallbacks for common user needs (India/Telugu)
-    if (query == 'india' || query == 'hindi')
-      return {'code': 'hi', 'flag': '🇮🇳'};
-    if (query == 'telugu') return {'code': 'te', 'flag': '🇮🇳'};
-    if (query == 'tamil') return {'code': 'ta', 'flag': '🇮🇳'};
-    if (query == 'english' || query == 'usa' || query == 'uk')
-      return {'code': 'en', 'flag': '🇺🇸'};
 
     try {
       // 1. Try exact match on 'search_name' (lowercase)
@@ -49,33 +44,46 @@ class LanguageSearchService {
         };
       }
     } catch (e) {
-      print("Error looking up language in Firebase: $e");
+      // debugPrint("Error looking up language in Firebase: $e");
     }
 
     return null;
   }
 
-  /// Helper to seed the languages collection
+  /// Fetches language data from RestCountries API and seeds Firestore.
+  Future<void> seedLanguagesFromApi() async {
+    try {
+      final response = await http.get(Uri.parse(
+          'https://restcountries.com/v3.1/all?fields=name,cca2,flag,languages'));
+      if (response.statusCode == 200) {
+        final List<dynamic> data = json.decode(response.body);
+        final List<Map<String, dynamic>> countries =
+            data.cast<Map<String, dynamic>>();
+        await seedLanguages(countries);
+      }
+    } catch (e) {
+      debugPrint("Error seeding languages from API: $e");
+    }
+  }
+
+  /// Helper to seed the languages collection with multi-batch support
   Future<void> seedLanguages(List<Map<String, dynamic>> countries) async {
-    final batch = _db.batch();
+    int count = 0;
+    WriteBatch batch = _db.batch();
     final collection = _db.collection('languages_config');
 
+    // Flatten languages first to handle batching easily
+    final List<Map<String, dynamic>> flattenedLangs = [];
     for (var country in countries) {
       if (country['languages'] == null) continue;
-
       final Map<String, dynamic> langs =
           Map<String, dynamic>.from(country['languages']);
-      final flag = country['flag'].toString();
-      final countryCode = country['cca2'].toString().toLowerCase();
+      final flag = country['flag']?.toString() ?? '🌐';
+      final countryCode = country['cca2']?.toString().toLowerCase() ?? '';
 
       langs.forEach((key, value) {
-        final langName = value.toString();
-        final docRef =
-            collection.doc(langName.replaceAll(' ', '_').toLowerCase());
-
-        batch.set(docRef, {
-          'name': langName,
-          'search_name': langName.toLowerCase(),
+        flattenedLangs.add({
+          'name': value.toString(),
           'code': key.toLowerCase(),
           'flag': flag,
           'country_code': countryCode,
@@ -83,6 +91,33 @@ class LanguageSearchService {
       });
     }
 
-    await batch.commit();
+    debugPrint("Total languages to seed: ${flattenedLangs.length}");
+
+    for (var lang in flattenedLangs) {
+      final langName = lang['name'];
+      final docRef =
+          collection.doc(langName.replaceAll(' ', '_').toLowerCase());
+
+      batch.set(docRef, {
+        'name': langName,
+        'search_name': langName.toLowerCase(),
+        'code': lang['code'],
+        'flag': lang['flag'],
+        'country_code': lang['country_code'],
+      });
+
+      count++;
+      if (count >= 450) {
+        await batch.commit();
+        batch = _db.batch();
+        count = 0;
+        debugPrint("Committed batch...");
+      }
+    }
+
+    if (count > 0) {
+      await batch.commit();
+      debugPrint("Committed final batch.");
+    }
   }
 }

@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
+import '../services/language_search_service.dart';
 
 class DataSeeder {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
@@ -7,6 +8,10 @@ class DataSeeder {
   Future<void> seedAllData() async {
     try {
       debugPrint('Starting database seed...');
+
+      // 0. SEED LANGUAGES FROM API
+      await LanguageSearchService().seedLanguagesFromApi();
+      debugPrint('Languages seeded from API.');
 
       // 1. HERO SECTION
       await _db.collection('content').doc('hero').set({

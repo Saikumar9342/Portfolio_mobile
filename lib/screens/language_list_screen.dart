@@ -59,6 +59,35 @@ class LanguageListScreen extends StatelessWidget {
             ),
             actions: [
               IconButton(
+                icon: const Icon(Icons.sync_rounded, color: Colors.blueAccent),
+                tooltip: "Sync global languages",
+                onPressed: () async {
+                  _showProcessingDialog(context);
+                  try {
+                    await LanguageSearchService().seedLanguagesFromApi();
+                    if (context.mounted) {
+                      Navigator.pop(context); // pop processor
+                      _showStatusDialog(
+                        context,
+                        title: "Sync Successful",
+                        message:
+                            "The global language database has been updated.",
+                      );
+                    }
+                  } catch (e) {
+                    if (context.mounted) {
+                      Navigator.pop(context); // pop processor
+                      _showStatusDialog(
+                        context,
+                        title: "Sync Failed",
+                        message: e.toString(),
+                        isError: true,
+                      );
+                    }
+                  }
+                },
+              ),
+              IconButton(
                 icon: const Icon(Icons.add, color: AppTheme.primaryColor),
                 onPressed: () => _showAddLanguageDialog(context, languages),
               ),
@@ -139,13 +168,15 @@ class LanguageListScreen extends StatelessWidget {
                       flagCtrl.text = match['flag']!;
                     });
                   } else {
-                    _showStatusDialog(
-                      context,
-                      title: "Language Not Found",
-                      message:
-                          "We couldn't find details for '$val'. Please try another language name.",
-                      isError: true,
-                    );
+                    if (context.mounted) {
+                      _showStatusDialog(
+                        context,
+                        title: "Language Not Found",
+                        message:
+                            "We couldn't find details for '$val'. Please try another language name.",
+                        isError: true,
+                      );
+                    }
                   }
                 },
                 onChanged: (val) {
@@ -262,9 +293,10 @@ class LanguageListScreen extends StatelessWidget {
           margin: const EdgeInsets.symmetric(horizontal: 40),
           padding: const EdgeInsets.all(32),
           decoration: BoxDecoration(
-            color: AppTheme.surfaceColor.withOpacity(0.9),
+            color: AppTheme.surfaceColor.withValues(alpha: 0.9),
             borderRadius: BorderRadius.circular(32),
-            border: Border.all(color: AppTheme.primaryColor.withOpacity(0.2)),
+            border:
+                Border.all(color: AppTheme.primaryColor.withValues(alpha: 0.2)),
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
