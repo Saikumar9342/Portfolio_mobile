@@ -1,4 +1,6 @@
 
+import org.gradle.api.tasks.compile.JavaCompile
+
 buildscript {
     repositories {
         google()
@@ -28,6 +30,15 @@ subprojects {
 }
 subprojects {
     project.evaluationDependsOn(":app")
+}
+
+subprojects {
+    // Force all Android/Flutter plugin modules to compile with Java 11.
+    // This removes "source/target value 8 is obsolete" warnings from plugin subprojects.
+    tasks.withType<JavaCompile>().configureEach {
+        sourceCompatibility = JavaVersion.VERSION_11.toString()
+        targetCompatibility = JavaVersion.VERSION_11.toString()
+    }
 }
 
 tasks.register<Delete>("clean") {
