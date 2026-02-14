@@ -13,7 +13,9 @@ enum DataType { string, stringList, objectList, json, image }
 class FieldData {
   TextEditingController controller;
   DataType type;
-  FieldData(this.controller, this.type);
+  List<Map<String, dynamic>>? objectItems;
+
+  FieldData(this.controller, this.type, {this.objectItems});
 }
 
 class ContentEditorScreen extends StatefulWidget {
@@ -36,12 +38,66 @@ class _ContentEditorScreenState extends State<ContentEditorScreen> {
   bool _isLoading = true;
   bool _isSaving = false;
   bool _isDirty = false;
+  bool _isProgrammaticFieldUpdate = false;
   final CloudinaryService _cloudinaryService = CloudinaryService();
+  static const Set<String> _numericObjectKeys = {
+    'level',
+    'score',
+    'percentage',
+    'percent',
+    'order',
+    'priority',
+  };
 
   @override
   void initState() {
     super.initState();
     _loadData();
+  }
+
+  void _markDirty() {
+    if (mounted && !_isDirty && !_isLoading) {
+      setState(() => _isDirty = true);
+    }
+  }
+
+  void _setFieldText(FieldData field, String value) {
+    _isProgrammaticFieldUpdate = true;
+    field.controller.text = value;
+    _isProgrammaticFieldUpdate = false;
+  }
+
+  void _disposeDialogControllersSafely(
+    Iterable<TextEditingController> controllers,
+  ) {
+    // Let route transition + keyboard teardown finish before disposing.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      Future<void>.delayed(const Duration(milliseconds: 600), () {
+        for (final controller in controllers) {
+          controller.dispose();
+        }
+      });
+    });
+  }
+
+  List<Map<String, dynamic>> _normalizeObjectItems(List<dynamic> rawItems) {
+    return rawItems
+        .whereType<Map>()
+        .map((item) => Map<String, dynamic>.fromEntries(
+              item.entries.map((e) => MapEntry(e.key.toString(), e.value)),
+            ))
+        .toList();
+  }
+
+  List<Map<String, dynamic>> _decodeObjectItems(String raw) {
+    if (raw.trim().isEmpty) return <Map<String, dynamic>>[];
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is List) return _normalizeObjectItems(decoded);
+    } catch (_) {
+      // Ignore malformed JSON and return empty list for UI stability.
+    }
+    return <Map<String, dynamic>>[];
   }
 
   @override
@@ -78,6 +134,7 @@ class _ContentEditorScreenState extends State<ContentEditorScreen> {
         final value = data[key];
         String text = '';
         DataType type = DataType.string;
+        List<Map<String, dynamic>>? objectItems;
 
         if (value is String) {
           text = value;
@@ -94,7 +151,7 @@ class _ContentEditorScreenState extends State<ContentEditorScreen> {
                 defaultVal.isNotEmpty &&
                 defaultVal.first is Map) {
               type = DataType.objectList;
-              text = const JsonEncoder.withIndent('  ').convert(value);
+              objectItems = <Map<String, dynamic>>[];
             } else if (defaultVal is List &&
                 defaultVal.isNotEmpty &&
                 defaultVal.first is String) {
@@ -109,8 +166,8 @@ class _ContentEditorScreenState extends State<ContentEditorScreen> {
             text = (value).join(', ');
             type = DataType.stringList;
           } else if (value.first is Map) {
-            text = const JsonEncoder.withIndent('  ').convert(value);
             type = DataType.objectList;
+            objectItems = _normalizeObjectItems(value);
           } else {
             text = const JsonEncoder.withIndent('  ').convert(value);
             type = DataType.json;
@@ -125,11 +182,16 @@ class _ContentEditorScreenState extends State<ContentEditorScreen> {
         }
         final controller = TextEditingController(text: text);
         controller.addListener(() {
-          if (!_isDirty && !_isLoading) {
+          if (_isProgrammaticFieldUpdate) return;
+          if (!_isDirty && !_isLoading && mounted) {
             setState(() => _isDirty = true);
           }
         });
-        _fields[key] = FieldData(controller, type);
+        _fields[key] = FieldData(
+          controller,
+          type,
+          objectItems: objectItems,
+        );
       }
     } catch (e) {
       debugPrint('Error loading data: $e');
@@ -236,8 +298,10 @@ class _ContentEditorScreenState extends State<ContentEditorScreen> {
                   .toList();
               break;
             case DataType.json:
-            case DataType.objectList:
               data[key] = jsonDecode(field.controller.text);
+              break;
+            case DataType.objectList:
+              data[key] = field.objectItems ?? <Map<String, dynamic>>[];
               break;
           }
         } catch (e) {
@@ -301,7 +365,7 @@ class _ContentEditorScreenState extends State<ContentEditorScreen> {
     final url = await _cloudinaryService.pickAndUploadImage();
     if (url != null) {
       setState(() {
-        field.controller.text = url;
+        _setFieldText(field, url);
       });
     } else {
       if (mounted) {
@@ -460,13 +524,22 @@ class _ContentEditorScreenState extends State<ContentEditorScreen> {
               final title = titleCtrl.text.trim();
 
               if (key.isNotEmpty && title.isNotEmpty) {
+                final sectionController = TextEditingController(text: '[]');
+                sectionController.addListener(_markDirty);
+                final titleController = TextEditingController(text: title);
+                titleController.addListener(_markDirty);
+
                 setState(() {
                   // Add the list field
                   _fields[key] = FieldData(
-                      TextEditingController(text: '[]'), DataType.objectList);
+                    sectionController,
+                    DataType.objectList,
+                    objectItems: <Map<String, dynamic>>[],
+                  );
                   // Add the title field
-                  _fields['${key}Title'] = FieldData(
-                      TextEditingController(text: title), DataType.string);
+                  _fields['${key}Title'] =
+                      FieldData(titleController, DataType.string);
+                  _isDirty = true;
                 });
                 Navigator.pop(ctx);
               }
@@ -477,8 +550,7 @@ class _ContentEditorScreenState extends State<ContentEditorScreen> {
         ],
       ),
     );
-    nameCtrl.dispose();
-    titleCtrl.dispose();
+    _disposeDialogControllersSafely([nameCtrl, titleCtrl]);
   }
 
   Widget _buildField(String key, FieldData field) {
@@ -563,10 +635,8 @@ class _ContentEditorScreenState extends State<ContentEditorScreen> {
   }
 
   Widget _buildObjectListEditor(String key, FieldData field) {
-    List<dynamic> items = [];
-    try {
-      items = jsonDecode(field.controller.text);
-    } catch (e) {/* ignore */}
+    final items =
+        field.objectItems ??= _decodeObjectItems(field.controller.text);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -582,7 +652,7 @@ class _ContentEditorScreenState extends State<ContentEditorScreen> {
         const SizedBox(height: 12),
         ...items.asMap().entries.map((entry) {
           final index = entry.key;
-          final item = entry.value as Map<String, dynamic>;
+          final item = entry.value;
           final title = item.values.firstOrNull?.toString() ?? 'Item $index';
           final subtitle =
               item.values.length > 1 ? item.values.elementAt(1).toString() : '';
@@ -615,7 +685,9 @@ class _ContentEditorScreenState extends State<ContentEditorScreen> {
                     onPressed: () {
                       setState(() {
                         items.removeAt(index);
-                        field.controller.text = jsonEncode(items);
+                        field.objectItems =
+                            List<Map<String, dynamic>>.from(items);
+                        _isDirty = true;
                       });
                     },
                   ),
@@ -633,74 +705,128 @@ class _ContentEditorScreenState extends State<ContentEditorScreen> {
     );
   }
 
-  void _editListItem(
-      String key, List<dynamic> items, int index, FieldData field) {
-    final isNew = index == -1;
-    Map<String, dynamic> itemData = isNew
-        ? _getTemplateForItem(key)
-        : Map<String, dynamic>.from(items[index]);
+  void _editListItem(String listKey, List<Map<String, dynamic>> items,
+      int index, FieldData field) {
+    final bool isNew = index == -1;
 
-    final controllers = <String, TextEditingController>{};
-    itemData.forEach((k, v) {
-      controllers[k] = TextEditingController(text: v.toString());
+    // 1. Determine the initial data map
+    late Map<String, dynamic> initialData;
+    if (isNew) {
+      initialData = _getTemplateForItem(listKey);
+    } else {
+      initialData = Map<String, dynamic>.from(items[index] as Map);
+    }
+
+    // 2. Create controllers for each field in the map
+    // We map each key to a TextEditingController
+    final Map<String, TextEditingController> controllers = {};
+    initialData.forEach((key, value) {
+      controllers[key] = TextEditingController(text: value.toString());
     });
 
+    // 3. Show dialog
     showDialog(
-        context: context,
-        builder: (context) => AlertDialog(
-              backgroundColor: AppTheme.surfaceColor,
-              title: Text(isNew ? "Add Item" : "Edit Item",
-                  style: GoogleFonts.outfit(color: Colors.white)),
-              content: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: itemData.keys.map((k) {
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: 16),
-                      child: CustomTextField(
-                          label: k.toUpperCase(), controller: controllers[k]!),
-                    );
-                  }).toList(),
-                ),
+      context: context,
+      barrierDismissible: false, // Prevent accidental dismissal
+      builder: (ctx) {
+        return AlertDialog(
+          backgroundColor: AppTheme.surfaceColor,
+          title: Text(
+            isNew ? "Add Item" : "Edit Item",
+            style: GoogleFonts.outfit(
+              color: Colors.white,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: controllers.entries.map((entry) {
+                final key = entry.key;
+                final controller = entry.value;
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 16),
+                  child: CustomTextField(
+                    label: key.toUpperCase(),
+                    controller: controller,
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(ctx).pop(); // Close dialog
+              },
+              child: const Text(
+                "Cancel",
+                style: TextStyle(color: AppTheme.textSecondary),
               ),
-              actions: [
-                TextButton(
-                    onPressed: () => Navigator.pop(context),
-                    child: const Text("Cancel")),
-                TextButton(
-                    onPressed: () {
-                      final newItem = <String, dynamic>{};
-                      controllers.forEach((k, v) {
-                        // Try to keep types if possible, essentially for numbers
-                        if (num.tryParse(v.text) != null &&
-                            !v.text.contains(',')) {
-                          // Generic check for level field in skills
-                          if (k == 'level' && widget.docId == 'skills') {
-                            newItem[k] = num.tryParse(v.text) ?? v.text;
-                            return;
-                          }
-                        }
-                        newItem[k] = v.text;
-                      });
+            ),
+            TextButton(
+              onPressed: () {
+                try {
+                  // 4. Collect values from controllers
+                  final Map<String, dynamic> newItem = {};
 
-                      setState(() {
-                        if (isNew) {
-                          items.add(newItem);
-                        } else {
-                          items[index] = newItem;
-                        }
-                        field.controller.text = jsonEncode(items);
-                      });
-                      Navigator.pop(context);
-                    },
-                    child: const Text("Save",
-                        style: TextStyle(color: AppTheme.primaryColor)))
-              ],
-            )).whenComplete(() {
-      for (final controller in controllers.values) {
-        controller.dispose();
-      }
+                  controllers.forEach((key, controller) {
+                    final text = controller.text;
+                    final normalizedKey = key.trim().toLowerCase();
+                    final shouldParseNumber =
+                        _numericObjectKeys.contains(normalizedKey) &&
+                            !text.contains(',');
+                    if (shouldParseNumber) {
+                      final parsedNum = num.tryParse(text);
+                      newItem[key] = parsedNum ?? text;
+                    } else {
+                      newItem[key] = text;
+                    }
+                  });
+
+                  final updatedItems = List<Map<String, dynamic>>.from(items);
+
+                  if (isNew) {
+                    updatedItems.add(newItem);
+                  } else {
+                    updatedItems[index] = newItem;
+                  }
+
+                  if (!mounted) {
+                    Navigator.of(ctx).pop();
+                    return;
+                  }
+
+                  setState(() {
+                    field.objectItems = updatedItems;
+                    _isDirty = true;
+                  });
+
+                  Navigator.of(ctx).pop(); // Close dialog
+                } catch (e) {
+                  if (!mounted) return;
+                  ActionDialog.show(
+                    context,
+                    title: "Save Failed",
+                    message: "Could not save item: $e",
+                    type: ActionDialogType.danger,
+                    onConfirm: () {},
+                  );
+                }
+              },
+              child: const Text(
+                "Save",
+                style: TextStyle(color: AppTheme.primaryColor),
+              ),
+            ),
+          ],
+        );
+      },
+    ).then((_) {
+      _disposeDialogControllersSafely(controllers.values);
     });
+
+    // Note: controllers are disposed in the .then() block to avoid leaks
   }
 
   Map<String, dynamic> _getTemplateForItem(String key) {

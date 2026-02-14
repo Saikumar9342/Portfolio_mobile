@@ -1,4 +1,4 @@
-
+import org.gradle.api.file.Directory
 import org.gradle.api.tasks.compile.JavaCompile
 
 buildscript {
@@ -18,26 +18,26 @@ allprojects {
     }
 }
 
-// Targeted fix for the cross-drive path issue on Windows.
-// Some plugins live in the Pub cache (C:), while the project is on E:.
-subprojects {
-    project.evaluationDependsOn(":app")
-    
-    // Force all modules to compile with Java 11.
-    tasks.withType<JavaCompile>().configureEach {
-        sourceCompatibility = JavaVersion.VERSION_11.toString()
-        targetCompatibility = JavaVersion.VERSION_11.toString()
-    }
+val newBuildDir: Directory =
+    rootProject.layout.buildDirectory
+        .dir("../../build")
+        .get()
+rootProject.layout.buildDirectory.value(newBuildDir)
 
-    // Move plugin build directories to C: drive if they are from the pub cache
-    // This avoids drive-root calculation errors in Gradle.
-    if (project.name != "app") {
-        val userHome = System.getProperty("user.home")
-        val fallbackBuildDir = file("$userHome/.flutter_builds_temp/${rootProject.name}/${project.name}")
-        project.layout.buildDirectory.value(project.layout.projectDirectory.dir(fallbackBuildDir.absolutePath))
+subprojects {
+    val newSubprojectBuildDir: Directory = newBuildDir.dir(project.name)
+    project.layout.buildDirectory.value(newSubprojectBuildDir)
+    project.evaluationDependsOn(":app")
+
+    // Keep Java compile targets aligned across plugin subprojects.
+    tasks.withType<JavaCompile>().configureEach {
+        sourceCompatibility = JavaVersion.VERSION_17.toString()
+        targetCompatibility = JavaVersion.VERSION_17.toString()
+        options.compilerArgs.add("-Xlint:-options")
     }
 }
 
 tasks.register<Delete>("clean") {
     delete(rootProject.layout.buildDirectory)
 }
+

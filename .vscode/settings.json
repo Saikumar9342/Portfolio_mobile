@@ -1,0 +1,13 @@
+{
+    "java.configuration.updateBuildConfiguration": "automatic",
+    "java.import.gradle.wrapper.enabled": true,
+    "java.import.gradle.enabled": false,
+    "java.import.maven.enabled": false,
+    "java.import.exclusions": [
+        "**/.dart_tool/**",
+        "**/build/**",
+        "**/.gradle/**",
+        "**/android/.gradle/**",
+        "**/AppData/Local/Pub/Cache/**"
+    ]
+}

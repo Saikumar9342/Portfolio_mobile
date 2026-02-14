@@ -17,11 +17,16 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen>
     with TickerProviderStateMixin {
+  static const String _googleServerClientId =
+      '16450323072-5u4bqmvvnkpf5bnds15lr7i4es6ko9dj.apps.googleusercontent.com';
   bool _isLoading = false;
   String? _error;
 
   final LocalAuthentication _localAuth = LocalAuthentication();
-  final GoogleSignIn _googleSignIn = GoogleSignIn();
+  final GoogleSignIn _googleSignIn = GoogleSignIn(
+    scopes: <String>['email', 'profile'],
+    serverClientId: _googleServerClientId,
+  );
 
   late AnimationController _pulseController;
   late Animation<double> _pulseAnimation;
@@ -58,15 +63,15 @@ class _LoginScreenState extends State<LoginScreen>
   }
 
   Future<void> _signInWithGoogle() async {
+    if (_isLoading) return;
     setState(() {
       _isLoading = true;
       _error = null;
     });
 
     try {
-      await _googleSignIn.signOut();
-
-      final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
+      final GoogleSignInAccount? googleUser =
+          await _googleSignIn.signIn().timeout(const Duration(seconds: 30));
       if (googleUser == null) {
         if (!context.mounted) return;
         setState(() => _isLoading = false);
@@ -74,7 +79,15 @@ class _LoginScreenState extends State<LoginScreen>
       }
 
       final GoogleSignInAuthentication googleAuth =
-          await googleUser.authentication;
+          await googleUser.authentication.timeout(const Duration(seconds: 30));
+
+      if (googleAuth.idToken == null) {
+        throw PlatformException(
+          code: 'google_sign_in_no_id_token',
+          message:
+              'Google sign-in did not return an ID token. Check Firebase Android SHA-1/SHA-256 and OAuth client setup.',
+        );
+      }
 
       final AuthCredential credential = GoogleAuthProvider.credential(
         accessToken: googleAuth.accessToken,
@@ -82,6 +95,13 @@ class _LoginScreenState extends State<LoginScreen>
       );
 
       await FirebaseAuth.instance.signInWithCredential(credential);
+    } on PlatformException catch (e) {
+      if (mounted) {
+        setState(() {
+          _error =
+              'Google sign-in configuration error (${e.code}). Please verify Play Services and Firebase SHA setup.';
+        });
+      }
     } on FirebaseAuthException catch (e) {
       if (mounted) {
         setState(() {
