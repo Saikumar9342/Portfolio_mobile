@@ -1,5 +1,5 @@
+import 'package:flutter/foundation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'firestore_service.dart';
 
 class LanguageSearchService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
@@ -11,12 +11,18 @@ class LanguageSearchService {
     if (query.isEmpty) return null;
 
     // Hard-coded priority fallbacks for common user needs (India/Telugu)
-    if (query == 'india' || query == 'hindi')
+    if (query == 'india' || query == 'hindi') {
       return {'code': 'hi', 'flag': '🇮🇳'};
-    if (query == 'telugu') return {'code': 'te', 'flag': '🇮🇳'};
-    if (query == 'tamil') return {'code': 'ta', 'flag': '🇮🇳'};
-    if (query == 'english' || query == 'usa' || query == 'uk')
+    }
+    if (query == 'telugu') {
+      return {'code': 'te', 'flag': '🇮🇳'};
+    }
+    if (query == 'tamil') {
+      return {'code': 'ta', 'flag': '🇮🇳'};
+    }
+    if (query == 'english' || query == 'usa' || query == 'uk') {
       return {'code': 'en', 'flag': '🇺🇸'};
+    }
 
     try {
       // 1. Try exact match on 'search_name' (lowercase)
@@ -50,7 +56,7 @@ class LanguageSearchService {
         };
       }
     } catch (e) {
-      print("Error looking up country in Firebase: $e");
+      debugPrint("Error looking up country in Firebase: $e");
     }
 
     return null;

@@ -26,9 +26,9 @@ class LanguageListScreen extends StatelessWidget {
           );
         }
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return Scaffold(
+          return const Scaffold(
             backgroundColor: AppTheme.scaffoldBackgroundColor,
-            body: const Center(child: CircularProgressIndicator()),
+            body: Center(child: CircularProgressIndicator()),
           );
         }
 

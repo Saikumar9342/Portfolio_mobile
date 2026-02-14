@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:translator/translator.dart';
 import 'firestore_service.dart';
 
@@ -17,7 +18,7 @@ class TranslationService {
   ];
 
   Future<void> translateAndSaveContentForLanguage(String languageCode) async {
-    print("Starting translation for language: $languageCode");
+    debugPrint("Starting translation for language: $languageCode");
 
     // 1. Translate Content Documents (Hero, About, etc.)
     for (final docId in _contentDocIds) {
@@ -29,7 +30,7 @@ class TranslationService {
 
         if (contentSnapshot.exists && contentSnapshot.data() != null) {
           final data = contentSnapshot.data() as Map<String, dynamic>;
-          print("Translating doc: $docId");
+          debugPrint("Translating doc: $docId");
           final translatedData = await _translateMap(data, languageCode);
 
           // Save to new language path
@@ -37,7 +38,7 @@ class TranslationService {
               languageCode: languageCode);
         }
       } catch (e) {
-        print("Error translating doc $docId: $e");
+        debugPrint("Error translating doc $docId: $e");
       }
     }
 
@@ -46,7 +47,7 @@ class TranslationService {
       // Get all projects from default (root/English) collection
       final projectsSnapshot = await _firestoreService.streamProjects().first;
 
-      print("Translating ${projectsSnapshot.docs.length} projects...");
+      debugPrint("Translating ${projectsSnapshot.docs.length} projects...");
       for (final doc in projectsSnapshot.docs) {
         final data = doc.data() as Map<String, dynamic>;
         final translatedData = await _translateMap(data, languageCode);
@@ -56,10 +57,10 @@ class TranslationService {
             languageCode: languageCode);
       }
     } catch (e) {
-      print("Error translating projects: $e");
+      debugPrint("Error translating projects: $e");
     }
 
-    print("Translation completed for $languageCode");
+    debugPrint("Translation completed for $languageCode");
   }
 
   /// Recursively translate values
@@ -68,12 +69,14 @@ class TranslationService {
       // Heuristic to skip URLs, Paths, and empty strings
       if (value.trim().isEmpty) return value;
       if (value.startsWith('http') || value.startsWith('https')) return value;
-      if (value.startsWith('/'))
+      if (value.startsWith('/')) {
         return value; // localized paths often start with / but these are usually internal routes
+      }
 
       // Skip likely IDs (alphanumeric, no spaces, length > 20)
-      if (!value.contains(' ') && value.length > 20 && _hasDigits(value))
+      if (!value.contains(' ') && value.length > 20 && _hasDigits(value)) {
         return value;
+      }
 
       // Skip simple numbers or dates
       if (double.tryParse(value) != null) return value;
@@ -83,7 +86,7 @@ class TranslationService {
         return translation.text;
       } catch (e) {
         // Fallback: return original if translation fails
-        print('Translation error for "$value": $e');
+        debugPrint('Translation error for "$value": $e');
         return value;
       }
     } else if (value is List) {

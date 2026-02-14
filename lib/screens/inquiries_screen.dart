@@ -256,9 +256,9 @@ class _InquiryCard extends StatelessWidget {
                       bottom: 20,
                       width: 4,
                       child: Container(
-                        decoration: BoxDecoration(
+                        decoration: const BoxDecoration(
                           color: AppTheme.primaryColor,
-                          borderRadius: const BorderRadius.horizontal(
+                          borderRadius: BorderRadius.horizontal(
                               right: Radius.circular(4)),
                         ),
                       ),
