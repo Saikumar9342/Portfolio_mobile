@@ -232,7 +232,16 @@ class _ContentEditorScreenState extends State<ContentEditorScreen> {
           'email': 'email@example.com',
           'personalEmail': 'personal@example.com',
           'cta': 'Contact Me',
-          'secondaryCta': 'Other Action'
+          'secondaryCta': 'Other Action',
+          'formNameLabel': 'Full Name',
+          'formNamePlaceholder': 'John Doe',
+          'formEmailLabel': 'Email Address',
+          'formEmailPlaceholder': 'john@example.com',
+          'formSubjectLabel': 'Subject (Optional)',
+          'formSubjectPlaceholder': 'Project Inquiry',
+          'formMessageLabel': 'Your Message',
+          'formMessagePlaceholder': 'How can I help you?',
+          'formSubmitButton': 'Send Message'
         };
       case 'skills':
         return {
@@ -271,6 +280,13 @@ class _ContentEditorScreenState extends State<ContentEditorScreen> {
           'items': [
             {'label': 'Home', 'href': '/'}
           ]
+        };
+      case 'projects_page':
+        return {
+          'title': 'Selected',
+          'titleHighlight': 'Works',
+          'label': 'Works Portfolio',
+          'description': 'A curated collection of digital experiences...'
         };
       default:
         return {'title': 'New Section'};

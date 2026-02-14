@@ -9,7 +9,10 @@ import 'projects_screen.dart';
 import 'skills_manager_screen.dart';
 import 'resume_upload_screen.dart';
 import 'profile_screen.dart';
+import 'inquiries_screen.dart';
+import '../services/firestore_service.dart';
 import '../widgets/brand_logo.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -20,6 +23,7 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   final ScrollController _scrollController = ScrollController();
+  final FirestoreService _service = FirestoreService();
   bool _showTitle = false;
 
   @override
@@ -140,44 +144,101 @@ class _HomeScreenState extends State<HomeScreen> {
               SliverToBoxAdapter(
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(20, 10, 20, 20),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(
-                        _dateString.toUpperCase(),
-                        style: GoogleFonts.inter(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: AppTheme.textSecondary.withValues(alpha: 0.7),
-                          letterSpacing: 1.5,
-                        ),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            _dateString.toUpperCase(),
+                            style: GoogleFonts.inter(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color:
+                                  AppTheme.textSecondary.withValues(alpha: 0.7),
+                              letterSpacing: 1.5,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            _greeting,
+                            style: GoogleFonts.outfit(
+                              fontSize: 32,
+                              fontWeight: FontWeight.w300,
+                              color: AppTheme.textSecondary,
+                            ),
+                          ),
+                          StreamBuilder<User?>(
+                              stream: FirebaseAuth.instance.userChanges(),
+                              builder: (context, snapshot) {
+                                final name = (snapshot.data?.displayName !=
+                                            null &&
+                                        snapshot.data!.displayName!.isNotEmpty)
+                                    ? snapshot.data!.displayName!
+                                    : 'Saikumar';
+                                return Text(
+                                  name,
+                                  style: GoogleFonts.outfit(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 34,
+                                    color: AppTheme.textPrimary,
+                                    height: 1.0,
+                                  ),
+                                );
+                              }),
+                        ],
                       ),
-                      const SizedBox(height: 8),
-                      Text(
-                        _greeting,
-                        style: GoogleFonts.outfit(
-                          fontSize: 32,
-                          fontWeight: FontWeight.w300,
-                          color: AppTheme.textSecondary,
-                        ),
+                      Stack(
+                        children: [
+                          _Bouncy(
+                            child: IconButton(
+                              icon: const Icon(Icons.mark_email_unread_rounded,
+                                  color: AppTheme.primaryColor),
+                              iconSize: 32,
+                              onPressed: () => Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                      builder: (_) => const InquiriesScreen())),
+                            ),
+                          ),
+                          StreamBuilder<QuerySnapshot>(
+                              stream: FirebaseFirestore.instance
+                                  .collection('messages')
+                                  .where('status', isEqualTo: 'unread')
+                                  .snapshots(),
+                              builder: (context, snapshot) {
+                                if (!snapshot.hasData ||
+                                    snapshot.data!.docs.isEmpty) {
+                                  return const SizedBox.shrink();
+                                }
+                                return Positioned(
+                                  right: 8,
+                                  top: 8,
+                                  child: Container(
+                                    padding: const EdgeInsets.all(4),
+                                    decoration: const BoxDecoration(
+                                      color: Colors.redAccent,
+                                      shape: BoxShape.circle,
+                                    ),
+                                    constraints: const BoxConstraints(
+                                      minWidth: 16,
+                                      minHeight: 16,
+                                    ),
+                                    child: Text(
+                                      '${snapshot.data!.docs.length}',
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 8,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                      textAlign: TextAlign.center,
+                                    ),
+                                  ),
+                                );
+                              }),
+                        ],
                       ),
-                      StreamBuilder<User?>(
-                          stream: FirebaseAuth.instance.userChanges(),
-                          builder: (context, snapshot) {
-                            final name = (snapshot.data?.displayName != null &&
-                                    snapshot.data!.displayName!.isNotEmpty)
-                                ? snapshot.data!.displayName!
-                                : 'Saikumar';
-                            return Text(
-                              name,
-                              style: GoogleFonts.outfit(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 34,
-                                color: AppTheme.textPrimary,
-                                height: 1.0,
-                              ),
-                            );
-                          }),
                     ],
                   ),
                 ),
@@ -270,6 +331,31 @@ class _HomeScreenState extends State<HomeScreen> {
                             ),
                           ],
                         ),
+                        const SizedBox(height: 24),
+                        // Mini Analytics Row
+                        Row(
+                          children: [
+                            Text(
+                              "PORTFOLIO INSIGHTS",
+                              style: GoogleFonts.inter(
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                                color: AppTheme.textSecondary
+                                    .withValues(alpha: 0.5),
+                                letterSpacing: 1.2,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Container(
+                                height: 1,
+                                color: Colors.white.withValues(alpha: 0.05),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 16),
+                        _buildInsightsCard(),
                       ],
                     ),
                   ),
@@ -349,6 +435,12 @@ class _HomeScreenState extends State<HomeScreen> {
                         () => _navToEditor(context, 'Contact Info', 'contact')),
                     _buildAnimatedContentItem(5, "Navbar", Icons.menu_rounded,
                         () => _navToEditor(context, 'Navbar', 'navbar')),
+                    _buildAnimatedContentItem(
+                        6,
+                        "Projects Page",
+                        Icons.work_outline_rounded,
+                        () => _navToEditor(
+                            context, 'Projects Page', 'projects_page')),
                   ],
                 ),
               ),
@@ -381,6 +473,77 @@ class _HomeScreenState extends State<HomeScreen> {
       MaterialPageRoute(
         builder: (_) => ContentEditorScreen(docId: docId, title: title),
       ),
+    );
+  }
+
+  Widget _buildInsightsCard() {
+    return GradientCard(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: [
+              _buildStatItem(
+                  "Leads",
+                  FirebaseFirestore.instance
+                      .collection('messages')
+                      .snapshots()),
+              _buildStatItem("Projects", _service.streamProjects()),
+              _buildStatItem(
+                  "Skills",
+                  _service.streamContent('skills').map((doc) {
+                    if (!doc.exists) return 0;
+                    final data = doc.data();
+                    if (data == null) return 0;
+                    int count = 0;
+                    data.forEach((key, value) {
+                      if (value is List) count += value.length;
+                    });
+                    return count;
+                  })),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatItem(String label, dynamic source) {
+    return StreamBuilder(
+      stream: source is Stream ? source : (source as Future).asStream(),
+      builder: (context, snapshot) {
+        String value = "0";
+        if (snapshot.hasData) {
+          if (snapshot.data is QuerySnapshot) {
+            value = (snapshot.data as QuerySnapshot).docs.length.toString();
+          } else if (snapshot.data is int) {
+            value = snapshot.data.toString();
+          }
+        }
+        return Column(
+          children: [
+            Text(
+              value,
+              style: GoogleFonts.outfit(
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+                color: AppTheme.textPrimary,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              label.toUpperCase(),
+              style: GoogleFonts.inter(
+                fontSize: 10,
+                color: AppTheme.textSecondary,
+                fontWeight: FontWeight.bold,
+                letterSpacing: 1.0,
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 }
