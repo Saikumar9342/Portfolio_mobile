@@ -27,7 +27,7 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Atom Portfolio',
+      title: 'Atom Admin',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.darkTheme,
       home: const _AuthWrapper(),

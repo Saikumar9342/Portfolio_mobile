@@ -1,5 +1,5 @@
-name: portfolio_mobile
-description: "A new Flutter project."
+name: atom_admin
+description: "Atom Admin mobile app."
 publish_to: 'none'
 version: 1.0.0+1
 
@@ -23,6 +23,7 @@ dependencies:
   local_auth: ^2.1.6
   flutter_secure_storage: ^9.0.0
   google_sign_in: ^6.1.6
+  flutter_svg: ^2.0.17
   url_launcher: ^6.2.5
   translator: ^1.0.4+1
   http: ^1.2.0
@@ -34,3 +35,6 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  assets:
+    - assets/images/brand_logo.png
+    - assets/images/brand_logo.svg

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 
 class BrandLogo extends StatelessWidget {
   final double size;
@@ -6,41 +7,25 @@ class BrandLogo extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return CustomPaint(
-      size: Size(size, size),
-      painter: _AtomLogoPainter(),
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(size * 0.22),
+      child: Container(
+        color: Colors.transparent,
+        width: size,
+        height: size,
+        child: SvgPicture.asset(
+          'assets/images/brand_logo.svg',
+          width: size,
+          height: size,
+          fit: BoxFit.contain,
+          placeholderBuilder: (_) => Image.asset(
+            'assets/images/brand_logo.png',
+            width: size,
+            height: size,
+            fit: BoxFit.cover,
+          ),
+        ),
+      ),
     );
   }
-}
-
-class _AtomLogoPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = Colors.white
-      ..style = PaintingStyle.fill;
-
-    // Slanted Pillar
-    final path1 = Path();
-    path1.moveTo(size.width * 0.65, size.height * 0.1);
-    path1.lineTo(size.width * 0.85, size.height * 0.1);
-    path1.lineTo(size.width * 0.65, size.height * 0.9);
-    path1.lineTo(size.width * 0.45, size.height * 0.9);
-    path1.close();
-    canvas.drawPath(path1, paint);
-
-    // Orbital Curve/Swish
-    final path2 = Path();
-    final rect = Rect.fromLTWH(
-      size.width * 0.1,
-      size.height * 0.45,
-      size.width * 0.45,
-      size.height * 0.45,
-    );
-    path2.addOval(rect);
-    canvas.drawPath(path2, paint);
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
