@@ -12,7 +12,20 @@
           "package_name": "com.finsol.portfolio_mobile"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "16450323072-vsssf5n1lsisg78j1du1eibo6n8jb79n.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.finsol.portfolio_mobile",
+            "certificate_hash": "89bc71e245a1a953b38691d4384b6c1e8d2dcf27"
+          }
+        },
+        {
+          "client_id": "16450323072-5u4bqmvvnkpf5bnds15lr7i4es6ko9dj.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyCDVLDInUis2W8SGNXcCVuwYXMoiuQuWvI"
@@ -20,7 +33,12 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "16450323072-5u4bqmvvnkpf5bnds15lr7i4es6ko9dj.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
         }
       }
     }

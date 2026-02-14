@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart'; // Added import
 import 'package:google_fonts/google_fonts.dart';
 import '../services/firestore_service.dart';
 import '../services/cloudinary_service.dart';
@@ -79,6 +80,10 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final user = FirebaseAuth.instance.currentUser;
+    // Hardcoded Admin Email for Legacy Data Access
+    const adminEmail = "pasumarthisaikumar6266@gmail.com";
+
     return Scaffold(
       backgroundColor: AppTheme.scaffoldBackgroundColor,
       body: CustomScrollView(
@@ -132,7 +137,26 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
                 );
               }
 
-              final docs = snapshot.data!.docs;
+              // Filter docs based on ownership or legacy admin access
+              final allDocs = snapshot.data!.docs;
+              final docs = allDocs.where((doc) {
+                final data = doc.data() as Map<String, dynamic>;
+                final docUserId = data['userId'];
+
+                // 1. If project has an owner, only show if it matches current user
+                if (docUserId != null) {
+                  return docUserId == user?.uid;
+                }
+
+                // 2. If project has NO owner (Legacy), only show to the specific Admin Email
+                //    This prevents random new users from seeing old admin data.
+                if (user?.email == adminEmail) {
+                  return true;
+                }
+
+                return false;
+              }).toList();
+
               if (docs.isEmpty) {
                 return _buildEmptyView();
               }
