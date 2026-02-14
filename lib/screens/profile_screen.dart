@@ -117,15 +117,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
         await DataSeeder().seedAllData();
 
-        if (context.mounted) {
-          ActionDialog.show(
-            context,
-            title: "Database Reset",
-            message:
-                "Your portfolio database has been restored to default settings successfully.",
-            onConfirm: () {},
-          );
-        }
+        if (!mounted) return;
+        ActionDialog.show(
+          context,
+          title: "Database Reset",
+          message:
+              "Your portfolio database has been restored to default settings successfully.",
+          onConfirm: () {},
+        );
       },
       onCancel: () {},
     );
@@ -191,7 +190,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ),
                       boxShadow: [
                         BoxShadow(
-                          color: const Color(0xFFC6A969).withOpacity(0.3),
+                          color: const Color(0xFFC6A969).withValues(alpha: 0.3),
                           blurRadius: 20,
                           spreadRadius: 5,
                         )
@@ -263,7 +262,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppTheme.primaryColor,
                   disabledBackgroundColor:
-                      AppTheme.primaryColor.withOpacity(0.5),
+                      AppTheme.primaryColor.withValues(alpha: 0.5),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(16),
                   ),
@@ -323,7 +322,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           style: GoogleFonts.inter(
             fontSize: 12,
             fontWeight: FontWeight.bold,
-            color: AppTheme.textSecondary.withOpacity(0.5),
+            color: AppTheme.textSecondary.withValues(alpha: 0.5),
             letterSpacing: 1.2,
           ),
         ),
@@ -333,7 +332,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
             height: 1,
             decoration: BoxDecoration(
               gradient: LinearGradient(
-                colors: [Colors.white.withOpacity(0.1), Colors.transparent],
+                colors: [
+                  Colors.white.withValues(alpha: 0.1),
+                  Colors.transparent
+                ],
               ),
             ),
           ),
@@ -367,8 +369,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
               color: isEditing
-                  ? AppTheme.primaryColor.withOpacity(0.5)
-                  : Colors.white.withOpacity(0.05),
+                  ? AppTheme.primaryColor.withValues(alpha: 0.5)
+                  : Colors.white.withValues(alpha: 0.05),
             ),
           ),
           child: TextField(
@@ -384,7 +386,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               prefixIcon: Icon(icon,
                   color: isEditing
                       ? AppTheme.primaryColor
-                      : AppTheme.textSecondary.withOpacity(0.5)),
+                      : AppTheme.textSecondary.withValues(alpha: 0.5)),
               suffixIcon: onEditPressed != null
                   ? IconButton(
                       icon: Icon(
@@ -421,10 +423,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
         decoration: BoxDecoration(
           color: AppTheme.surfaceColor,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Colors.white.withOpacity(0.05)),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.05),
+              color: Colors.black.withValues(alpha: 0.05),
               blurRadius: 10,
               offset: const Offset(0, 4),
             ),
@@ -435,7 +437,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: color.withOpacity(0.1),
+                color: color.withValues(alpha: 0.1),
                 shape: BoxShape.circle,
               ),
               child: Icon(icon, color: color, size: 24),
@@ -458,14 +460,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     subtitle,
                     style: GoogleFonts.inter(
                       fontSize: 12,
-                      color: AppTheme.textSecondary.withOpacity(0.7),
+                      color: AppTheme.textSecondary.withValues(alpha: 0.7),
                     ),
                   ),
                 ],
               ),
             ),
             Icon(Icons.chevron_right_rounded,
-                color: AppTheme.textSecondary.withOpacity(0.5)),
+                color: AppTheme.textSecondary.withValues(alpha: 0.5)),
           ],
         ),
       ),

@@ -44,6 +44,14 @@ class _ContentEditorScreenState extends State<ContentEditorScreen> {
     _loadData();
   }
 
+  @override
+  void dispose() {
+    for (final field in _fields.values) {
+      field.controller.dispose();
+    }
+    super.dispose();
+  }
+
   Future<void> _loadData() async {
     try {
       final snapshot =
@@ -325,8 +333,8 @@ class _ContentEditorScreenState extends State<ContentEditorScreen> {
           onConfirm: () {},
         );
 
-        if (shouldPop == true && context.mounted) {
-          Navigator.pop(context);
+        if (shouldPop == true && mounted) {
+          Navigator.pop(this.context);
         }
       },
       child: Scaffold(
@@ -469,6 +477,8 @@ class _ContentEditorScreenState extends State<ContentEditorScreen> {
         ],
       ),
     );
+    nameCtrl.dispose();
+    titleCtrl.dispose();
   }
 
   Widget _buildField(String key, FieldData field) {
@@ -686,7 +696,11 @@ class _ContentEditorScreenState extends State<ContentEditorScreen> {
                     child: const Text("Save",
                         style: TextStyle(color: AppTheme.primaryColor)))
               ],
-            ));
+            )).whenComplete(() {
+      for (final controller in controllers.values) {
+        controller.dispose();
+      }
+    });
   }
 
   Map<String, dynamic> _getTemplateForItem(String key) {

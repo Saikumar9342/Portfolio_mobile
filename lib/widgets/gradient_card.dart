@@ -26,7 +26,7 @@ class GradientCard extends StatelessWidget {
           end: Alignment.bottomRight,
           colors: [
             AppTheme.surfaceColor,
-            AppTheme.surfaceColor.withOpacity(0.8),
+            AppTheme.surfaceColor.withValues(alpha: 0.8),
             const Color(0xFF252525),
           ],
         ),

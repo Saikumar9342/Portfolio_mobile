@@ -1,4 +1,5 @@
 import 'package:cloudinary_public/cloudinary_public.dart';
+import 'package:flutter/foundation.dart';
 import 'package:image_picker/image_picker.dart';
 
 class CloudinaryService {
@@ -25,13 +26,13 @@ class CloudinaryService {
     } catch (e) {
       if (e.toString().contains('DioException')) {
         final dynamic dioError = e;
-        print("CLOUDINARY ERROR: ${dioError.message}");
+        debugPrint("CLOUDINARY ERROR: ${dioError.message}");
         if (dioError.response != null) {
-          print("Response Data: ${dioError.response?.data}");
-          print("Status Code: ${dioError.response?.statusCode}");
+          debugPrint("Response Data: ${dioError.response?.data}");
+          debugPrint("Status Code: ${dioError.response?.statusCode}");
         }
       } else {
-        print("Error uploading to Cloudinary: $e");
+        debugPrint("Error uploading to Cloudinary: $e");
       }
       return null;
     }
@@ -48,7 +49,7 @@ class CloudinaryService {
       );
       return response.secureUrl;
     } catch (e) {
-      print("Error uploading PDF: $e");
+      debugPrint("Error uploading PDF: $e");
       return null;
     }
   }

@@ -51,7 +51,8 @@ class CustomTextField extends StatelessWidget {
             hintText: hint,
             prefixIcon: prefixIcon != null
                 ? Icon(prefixIcon,
-                    color: AppTheme.textSecondary.withOpacity(0.5), size: 20)
+                    color: AppTheme.textSecondary.withValues(alpha: 0.5),
+                    size: 20)
                 : null,
             filled: true,
             fillColor: AppTheme.inputFillColor,

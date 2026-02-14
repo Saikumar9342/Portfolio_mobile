@@ -74,7 +74,8 @@ class AppTheme {
           borderRadius: BorderRadius.circular(16),
           borderSide: const BorderSide(color: errorColor, width: 1),
         ),
-        hintStyle: GoogleFonts.inter(color: textSecondary.withOpacity(0.5)),
+        hintStyle:
+            GoogleFonts.inter(color: textSecondary.withValues(alpha: 0.5)),
       ),
 
       // ElevatedButton Theme

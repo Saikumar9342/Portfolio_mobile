@@ -513,6 +513,11 @@ class _ResumeUploadScreenState extends State<ResumeUploadScreen> {
         (techCount * 5);
   }
 
+  String _normalizeProjectKey(String? title) {
+    if (title == null) return '';
+    return title.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), '');
+  }
+
   Map<String, dynamic> _toProjectMap({
     required String title,
     required String role,
@@ -549,13 +554,13 @@ class _ResumeUploadScreenState extends State<ResumeUploadScreen> {
         setState(() => _status = "Uploading Resume PDF...");
         final url = await CloudinaryService().uploadPdf(_pickedFilePath!);
         if (url != null) {
-          print("UPLOADED SUCCESS: $url");
+          debugPrint("UPLOADED SUCCESS: $url");
           _extractedProfile['resumeUrl'] = url;
         } else {
-          print("UPLOAD RETURNED NULL");
+          debugPrint("UPLOAD RETURNED NULL");
         }
       } else {
-        print("PICKED FILE PATH IS NULL");
+        debugPrint("PICKED FILE PATH IS NULL");
       }
 
       await _firestoreService.updateContent('hero', {
@@ -570,10 +575,10 @@ class _ResumeUploadScreenState extends State<ResumeUploadScreen> {
         contactData['resumeUrl'] = _extractedProfile['resumeUrl'];
       }
       if (contactData.isNotEmpty) {
-        print("UPDATING CONTACT WITH: $contactData");
+        debugPrint("UPDATING CONTACT WITH: $contactData");
         await _firestoreService.updateContent('contact', contactData);
       } else {
-        print("NO CONTACT DATA TO UPDATE");
+        debugPrint("NO CONTACT DATA TO UPDATE");
       }
 
       List<Map<String, String>> socialLinks = [];
@@ -614,9 +619,30 @@ class _ResumeUploadScreenState extends State<ResumeUploadScreen> {
         });
       }
 
-      // Check if user wants to replace projects...
-      for (var p in _extractedProjects) {
-        await _firestoreService.addProject(p);
+      // Upsert parsed projects by normalized title to avoid duplicates
+      final existingProjectsSnapshot =
+          await _firestoreService.getProjectsOnce();
+      final existingProjectIdByTitle = <String, String>{};
+
+      for (final doc in existingProjectsSnapshot.docs) {
+        final existingData = doc.data();
+        final existingTitle = existingData['title']?.toString();
+        final key = _normalizeProjectKey(existingTitle);
+        if (key.isNotEmpty && !existingProjectIdByTitle.containsKey(key)) {
+          existingProjectIdByTitle[key] = doc.id;
+        }
+      }
+
+      for (final parsedProject in _extractedProjects) {
+        final key = _normalizeProjectKey(parsedProject['title']?.toString());
+        if (key.isEmpty) continue;
+
+        final existingId = existingProjectIdByTitle[key];
+        if (existingId != null) {
+          await _firestoreService.updateProject(existingId, parsedProject);
+        } else {
+          await _firestoreService.addProject(parsedProject);
+        }
       }
 
       if (mounted) {
@@ -927,8 +953,8 @@ class _ResumeUploadScreenState extends State<ResumeUploadScreen> {
           onConfirm: () {},
         );
 
-        if (shouldPop == true && context.mounted) {
-          Navigator.pop(context);
+        if (shouldPop == true && mounted) {
+          Navigator.pop(this.context);
         }
       },
       child: Scaffold(
@@ -976,7 +1002,7 @@ class _ResumeUploadScreenState extends State<ResumeUploadScreen> {
             Container(
                 padding: const EdgeInsets.all(32),
                 decoration: BoxDecoration(
-                  color: AppTheme.primaryColor.withOpacity(0.1),
+                  color: AppTheme.primaryColor.withValues(alpha: 0.1),
                   shape: BoxShape.circle,
                 ),
                 child: const Icon(Icons.cloud_upload_outlined,
@@ -1155,7 +1181,8 @@ class _ResumeUploadScreenState extends State<ResumeUploadScreen> {
                                     padding: const EdgeInsets.symmetric(
                                         horizontal: 10, vertical: 4),
                                     decoration: BoxDecoration(
-                                        color: Colors.white.withOpacity(0.05),
+                                        color: Colors.white
+                                            .withValues(alpha: 0.05),
                                         border:
                                             Border.all(color: Colors.white10),
                                         borderRadius: BorderRadius.circular(8)),

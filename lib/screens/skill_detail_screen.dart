@@ -64,7 +64,9 @@ class _SkillDetailScreenState extends State<SkillDetailScreen> {
       if (mounted) {
         setState(() {
           _items = newItems;
-          if (newTitle != null) _currentTitle = newTitle;
+          if (newTitle != null) {
+            _currentTitle = newTitle;
+          }
         });
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -116,8 +118,8 @@ class _SkillDetailScreenState extends State<SkillDetailScreen> {
                       ? Center(
                           child: Text("No skills in this section yet.",
                               style: TextStyle(
-                                  color:
-                                      AppTheme.textSecondary.withOpacity(0.5))))
+                                  color: AppTheme.textSecondary
+                                      .withValues(alpha: 0.5))))
                       : ReorderableListView(
                           padding: const EdgeInsets.all(20),
                           onReorder: (oldIndex, newIndex) {
@@ -232,8 +234,9 @@ class _SkillDetailScreenState extends State<SkillDetailScreen> {
       useRichEditor = _items.first is Map;
     } else {
       // Known rich sections
-      if (['frontend', 'items'].contains(widget.sectionId))
+      if (['frontend', 'items'].contains(widget.sectionId)) {
         useRichEditor = true;
+      }
     }
 
     final nameCtrl = TextEditingController();
@@ -266,13 +269,16 @@ class _SkillDetailScreenState extends State<SkillDetailScreen> {
                 // Toggle between Tag vs Rich
                 Row(
                   children: [
-                    Text("Include Proficiency %?",
+                    const Text("Include Proficiency %?",
                         style: TextStyle(color: Colors.white70)),
                     Switch(
                       value: useRichEditor,
-                      onChanged: (val) =>
-                          setDialogState(() => useRichEditor = val),
-                      activeColor: AppTheme.primaryColor,
+                      onChanged: (val) {
+                        setDialogState(() => useRichEditor = val);
+                      },
+                      activeTrackColor:
+                          AppTheme.primaryColor.withValues(alpha: 0.5),
+                      activeThumbColor: AppTheme.primaryColor,
                     )
                   ],
                 ),
@@ -298,7 +304,9 @@ class _SkillDetailScreenState extends State<SkillDetailScreen> {
                 child: const Text("Cancel")),
             TextButton(
               onPressed: () {
-                if (nameCtrl.text.isEmpty) return;
+                if (nameCtrl.text.isEmpty) {
+                  return;
+                }
 
                 dynamic newItem;
                 if (useRichEditor) {

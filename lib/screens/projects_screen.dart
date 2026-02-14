@@ -187,7 +187,7 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(Icons.folder_open,
-                size: 64, color: AppTheme.textSecondary.withOpacity(0.5)),
+                size: 64, color: AppTheme.textSecondary.withValues(alpha: 0.5)),
             const SizedBox(height: 16),
             Text('No projects found',
                 style: GoogleFonts.inter(
@@ -361,11 +361,12 @@ class _ProjectCard extends StatelessWidget {
                             padding: const EdgeInsets.symmetric(
                                 horizontal: 10, vertical: 4),
                             decoration: BoxDecoration(
-                              color: AppTheme.primaryColor.withOpacity(0.1),
+                              color:
+                                  AppTheme.primaryColor.withValues(alpha: 0.1),
                               borderRadius: BorderRadius.circular(8),
                               border: Border.all(
-                                  color:
-                                      AppTheme.primaryColor.withOpacity(0.2)),
+                                  color: AppTheme.primaryColor
+                                      .withValues(alpha: 0.2)),
                             ),
                             child: Text(
                               tag.toString(),
@@ -462,6 +463,20 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
     _githubLinkController.addListener(setDirty);
   }
 
+  @override
+  void dispose() {
+    _titleController.dispose();
+    _descController.dispose();
+    _techStackController.dispose();
+    _imageUrlController.dispose();
+    _categoryController.dispose();
+    _roleController.dispose();
+    _fullDescController.dispose();
+    _liveLinkController.dispose();
+    _githubLinkController.dispose();
+    super.dispose();
+  }
+
   Future<void> _save() async {
     if (_formKey.currentState!.validate()) {
       setState(() => _isSaving = true);
@@ -553,8 +568,8 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
           onConfirm: () {},
         );
 
-        if (shouldPop == true && context.mounted) {
-          Navigator.pop(context);
+        if (shouldPop == true && mounted) {
+          Navigator.pop(this.context);
         }
       },
       child: Scaffold(

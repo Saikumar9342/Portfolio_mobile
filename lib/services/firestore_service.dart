@@ -58,6 +58,10 @@ class FirestoreService {
         .snapshots();
   }
 
+  Future<QuerySnapshot<Map<String, dynamic>>> getProjectsOnce() {
+    return _getProjectsCollection().get();
+  }
+
   Future<void> addProject(Map<String, dynamic> data) {
     // Add createdAt server timestamp
     final d = Map<String, dynamic>.from(data);

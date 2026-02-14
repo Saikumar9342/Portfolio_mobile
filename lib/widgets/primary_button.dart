@@ -28,7 +28,7 @@ class PrimaryButton extends StatelessWidget {
           backgroundColor: backgroundColor ?? AppTheme.primaryColor,
           elevation: 2,
           shadowColor:
-              (backgroundColor ?? AppTheme.primaryColor).withOpacity(0.3),
+              (backgroundColor ?? AppTheme.primaryColor).withValues(alpha: 0.3),
         ),
         onPressed: isLoading ? null : onPressed,
         child: isLoading

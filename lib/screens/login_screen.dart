@@ -15,7 +15,7 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   bool _isLoading = false;
   String? _error;
 
@@ -25,6 +25,9 @@ class _LoginScreenState extends State<LoginScreen>
   late AnimationController _pulseController;
   late Animation<double> _pulseAnimation;
 
+  late AnimationController _bgAnimationController;
+  late Animation<double> _bgMoveAnimation;
+
   @override
   void initState() {
     super.initState();
@@ -32,14 +35,24 @@ class _LoginScreenState extends State<LoginScreen>
         AnimationController(vsync: this, duration: const Duration(seconds: 2))
           ..repeat(reverse: true);
 
-    _pulseAnimation = Tween<double>(begin: 1.0, end: 1.05).animate(
+    _pulseAnimation = Tween<double>(begin: 1.0, end: 1.1).animate(
       CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
+    );
+
+    _bgAnimationController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 15),
+    )..repeat(reverse: true);
+
+    _bgMoveAnimation = Tween<double>(begin: -0.2, end: 0.2).animate(
+      CurvedAnimation(parent: _bgAnimationController, curve: Curves.easeInOut),
     );
   }
 
   @override
   void dispose() {
     _pulseController.dispose();
+    _bgAnimationController.dispose();
     super.dispose();
   }
 
@@ -50,12 +63,11 @@ class _LoginScreenState extends State<LoginScreen>
     });
 
     try {
-      // Force account picker by signing out/disconnecting previous session
       await _googleSignIn.signOut();
 
       final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
       if (googleUser == null) {
-        // User canceled the sign-in
+        if (!context.mounted) return;
         setState(() => _isLoading = false);
         return;
       }
@@ -69,9 +81,6 @@ class _LoginScreenState extends State<LoginScreen>
       );
 
       await FirebaseAuth.instance.signInWithCredential(credential);
-
-      // We don't store Google credentials locally for biometric re-auth in the same way
-      // as password, but Firebase persists the session automatically.
     } on FirebaseAuthException catch (e) {
       if (mounted) {
         setState(() {
@@ -90,10 +99,6 @@ class _LoginScreenState extends State<LoginScreen>
   }
 
   Future<void> _authenticateWithBiometrics() async {
-    // For Google Sign-In, biometric auth on the login screen is tricky because we don't have the password.
-    // However, we can use it to "unlock" if we had a local session, but here we usually don't.
-    // We'll treat this as a "quick resume" attempt or just show a message for now.
-
     try {
       final bool canCheckBiometrics = await _localAuth.canCheckBiometrics;
       final bool isDeviceSupported = await _localAuth.isDeviceSupported();
@@ -119,10 +124,6 @@ class _LoginScreenState extends State<LoginScreen>
       );
 
       if (authenticated) {
-        // Here we would ideally re-login with stored token, but with Google it's handled by session.
-        // If we are on LoginScreen, it means we are NOT logged in.
-        // So we can't really "log in" with just biometrics unless we stored a custom token (not recommended).
-        // For now, we'll prompt the Google Sign In (which might use Smart Lock).
         _signInWithGoogle();
       }
     } on PlatformException catch (e) {
@@ -149,218 +150,396 @@ class _LoginScreenState extends State<LoginScreen>
 
   @override
   Widget build(BuildContext context) {
+    final size = MediaQuery.of(context).size;
+
     return Scaffold(
       backgroundColor: Colors.black,
       body: Stack(
         children: [
-          // 1. Cinematic Ambient Lighting
-          Positioned(
-            top: -100,
-            right: -50,
-            child: Container(
-              width: 400,
-              height: 400,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: RadialGradient(
-                  colors: [
-                    AppTheme.primaryColor.withOpacity(0.15),
-                    Colors.transparent
-                  ],
-                  stops: const [0.0, 0.7],
-                ),
-              ),
-              child: BackdropFilter(
-                filter: ImageFilter.blur(sigmaX: 50, sigmaY: 50),
-                child: Container(color: Colors.transparent),
-              ),
-            ),
+          // 1. Cinematic Animated Background Blobs
+          AnimatedBuilder(
+            animation: _bgMoveAnimation,
+            builder: (context, child) {
+              return Stack(
+                children: [
+                  Positioned(
+                    top: size.height * (0.1 + _bgMoveAnimation.value),
+                    right: -size.width * 0.2,
+                    child: _buildBlob(
+                      color: AppTheme.primaryColor.withValues(alpha: 0.15),
+                      size: 450,
+                    ),
+                  ),
+                  Positioned(
+                    bottom: size.height * (0.05 - _bgMoveAnimation.value),
+                    left: -size.width * 0.3,
+                    child: _buildBlob(
+                      color: const Color(0xFF624C24).withValues(alpha: 0.1),
+                      size: 500,
+                    ),
+                  ),
+                  Positioned(
+                    top: size.height * (0.6 + _bgMoveAnimation.value),
+                    right: size.width * 0.1,
+                    child: _buildBlob(
+                      color: Colors.white.withValues(alpha: 0.03),
+                      size: 300,
+                    ),
+                  ),
+                ],
+              );
+            },
           ),
-          Positioned(
-            bottom: -50,
-            left: -100,
-            child: Container(
-              width: 300,
-              height: 300,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: RadialGradient(
-                  colors: [Colors.white.withOpacity(0.05), Colors.transparent],
-                  stops: const [0.0, 0.7],
-                ),
-              ),
-              child: BackdropFilter(
-                filter: ImageFilter.blur(sigmaX: 50, sigmaY: 50),
-                child: Container(color: Colors.transparent),
+
+          // 2. Mesh-like Overlay
+          Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  Colors.black.withValues(alpha: 0.8),
+                  Colors.transparent,
+                  Colors.black.withValues(alpha: 0.9),
+                ],
               ),
             ),
           ),
 
-          // 2. Main Content
-          Center(
+          // 3. Content
+          SafeArea(
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 32),
+              padding: const EdgeInsets.symmetric(horizontal: 24),
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   const Spacer(),
-                  // Logo & Header
-                  Center(
-                    child: Hero(
-                      tag: 'app_logo',
-                      child: Container(
-                        padding: const EdgeInsets.all(20),
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: Colors.black,
-                          border: Border.all(
-                            color: AppTheme.primaryColor.withOpacity(0.5),
-                            width: 1,
-                          ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: AppTheme.primaryColor.withOpacity(0.1),
-                              blurRadius: 20,
-                              spreadRadius: 5,
-                            )
-                          ],
+
+                  // Entrance Animation for Logo and Title
+                  TweenAnimationBuilder<double>(
+                    duration: const Duration(seconds: 2),
+                    tween: Tween(begin: 0.0, end: 1.0),
+                    curve: Curves.easeOutCubic,
+                    builder: (context, value, child) {
+                      return Opacity(
+                        opacity: value,
+                        child: Transform.translate(
+                          offset: Offset(0, 30 * (1 - value)),
+                          child: child,
                         ),
-                        child: const Icon(
-                          Icons.admin_panel_settings_rounded,
-                          color: AppTheme.primaryColor,
-                          size: 50,
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 40),
-                  Text(
-                    "PORTFOLIO",
-                    textAlign: TextAlign.center,
-                    style: GoogleFonts.outfit(
-                      fontSize: 14,
-                      fontWeight: FontWeight.bold,
-                      color: AppTheme.primaryColor,
-                      letterSpacing: 4,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    "Admin Console",
-                    textAlign: TextAlign.center,
-                    style: GoogleFonts.outfit(
-                      fontSize: 36,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                      height: 1.1,
-                    ),
-                  ),
-
-                  const Spacer(),
-
-                  if (_error != null) ...[
-                    Text(
-                      _error!,
-                      style: GoogleFonts.inter(
-                        color: AppTheme.errorColor,
-                        fontSize: 13,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 20),
-                  ],
-
-                  // Google Sign In Button
-                  if (_isLoading)
-                    const Center(
-                        child: CircularProgressIndicator(
-                            color: AppTheme.primaryColor))
-                  else
-                    GestureDetector(
-                      onTap: _signInWithGoogle,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                            vertical: 16, horizontal: 24),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(30),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.white.withOpacity(0.1),
-                              blurRadius: 20,
-                              spreadRadius: 0,
-                              offset: const Offset(0, 4),
-                            )
-                          ],
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            // Simple G icon representation
-                            Container(
-                              padding: const EdgeInsets.all(2),
-                              decoration: const BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: Colors.white,
-                              ),
-                              child: Text(
-                                "G",
-                                style: GoogleFonts.roboto(
-                                  fontWeight: FontWeight.w900,
-                                  fontSize: 24,
-                                  color: Colors.black,
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Text(
-                              "Sign in with Google",
-                              style: GoogleFonts.outfit(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.black,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-
-                  const SizedBox(height: 40),
-
-                  // Biometric (Optional / Secondary)
-                  GestureDetector(
-                    onTap: _authenticateWithBiometrics,
+                      );
+                    },
                     child: Column(
                       children: [
+                        _buildAnimatedLogo(),
+                        const SizedBox(height: 48),
                         Text(
-                          "QUICK ACCESS",
-                          style: GoogleFonts.inter(
-                            fontSize: 10,
-                            letterSpacing: 2,
-                            color: Colors.white24,
+                          "PORTFOLIO",
+                          style: GoogleFonts.outfit(
+                            fontSize: 14,
                             fontWeight: FontWeight.bold,
+                            color: AppTheme.primaryColor,
+                            letterSpacing: 8,
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          "Admin Console",
+                          style: GoogleFonts.outfit(
+                            fontSize: 42,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                            height: 1.1,
+                            letterSpacing: -1,
                           ),
                         ),
                         const SizedBox(height: 16),
-                        ScaleTransition(
-                          scale: _pulseAnimation,
-                          child: Icon(
-                            Icons.fingerprint_rounded,
-                            color: AppTheme.textSecondary.withOpacity(0.5),
-                            size: 32,
+                        Text(
+                          "Authorized Access Only",
+                          style: GoogleFonts.inter(
+                            fontSize: 14,
+                            color: Colors.white38,
+                            letterSpacing: 1,
                           ),
                         ),
                       ],
                     ),
                   ),
-                  const Spacer(),
+
+                  const Spacer(flex: 2),
+
+                  // Login Actions Box
+                  Container(
+                    padding: const EdgeInsets.all(24),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.03),
+                      borderRadius: BorderRadius.circular(32),
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.05),
+                        width: 1,
+                      ),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        if (_error != null) ...[
+                          Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: AppTheme.errorColor.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Text(
+                              _error!,
+                              style: GoogleFonts.inter(
+                                color: AppTheme.errorColor,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w500,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                          ),
+                          const SizedBox(height: 20),
+                        ],
+
+                        if (_isLoading)
+                          const Center(
+                            child: Padding(
+                              padding: EdgeInsets.all(8.0),
+                              child: CircularProgressIndicator(
+                                color: AppTheme.primaryColor,
+                                strokeWidth: 3,
+                              ),
+                            ),
+                          )
+                        else
+                          _buildGoogleButton(),
+
+                        const SizedBox(height: 24),
+
+                        // Biometric Section
+                        GestureDetector(
+                          onTap: _authenticateWithBiometrics,
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Container(
+                                width: 40,
+                                height: 1,
+                                color: Colors.white10,
+                              ),
+                              Padding(
+                                padding:
+                                    const EdgeInsets.symmetric(horizontal: 16),
+                                child: Text(
+                                  "QUICK LOCK",
+                                  style: GoogleFonts.inter(
+                                    fontSize: 10,
+                                    letterSpacing: 3,
+                                    color: Colors.white24,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                              Container(
+                                width: 40,
+                                height: 1,
+                                color: Colors.white10,
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+                        Center(
+                          child: GestureDetector(
+                            onTap: _authenticateWithBiometrics,
+                            child: ScaleTransition(
+                              scale: _pulseAnimation,
+                              child: Container(
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: AppTheme.primaryColor
+                                      .withValues(alpha: 0.05),
+                                  border: Border.all(
+                                    color: AppTheme.primaryColor
+                                        .withValues(alpha: 0.1),
+                                  ),
+                                ),
+                                child: const Icon(
+                                  Icons.fingerprint_rounded,
+                                  color: AppTheme.primaryColor,
+                                  size: 28,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 48),
+
+                  // Footer
+                  Text(
+                    "SECURE ENCRYPTION ENABLED",
+                    style: GoogleFonts.inter(
+                      fontSize: 9,
+                      letterSpacing: 2,
+                      color: Colors.white12,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  const SizedBox(height: 24),
                 ],
               ),
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildBlob({required Color color, required double size}) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        gradient: RadialGradient(
+          colors: [color, Colors.transparent],
+          stops: const [0.0, 0.8],
+        ),
+      ),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 70, sigmaY: 70),
+        child: Container(color: Colors.transparent),
+      ),
+    );
+  }
+
+  Widget _buildAnimatedLogo() {
+    return SizedBox(
+      width: 120,
+      height: 120,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          // Outer Rotating Ring
+          AnimatedBuilder(
+            animation: _bgAnimationController,
+            builder: (context, child) {
+              return Transform.rotate(
+                angle: _bgAnimationController.value * 2 * 3.14159,
+                child: Container(
+                  width: 110,
+                  height: 110,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: AppTheme.primaryColor.withValues(alpha: 0.1),
+                      width: 2,
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+          // Inner Static Ring
+          Container(
+            width: 90,
+            height: 90,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: AppTheme.primaryColor.withValues(alpha: 0.4),
+                width: 1,
+              ),
+            ),
+          ),
+          // Core Circle
+          Container(
+            width: 70,
+            height: 70,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: AppTheme.primaryColor,
+              boxShadow: [
+                BoxShadow(
+                  color: AppTheme.primaryColor.withValues(alpha: 0.4),
+                  blurRadius: 30,
+                  spreadRadius: 2,
+                )
+              ],
+            ),
+            child: const Icon(
+              Icons.admin_panel_settings_rounded,
+              color: Colors.black,
+              size: 36,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildGoogleButton() {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: _signInWithGoogle,
+        borderRadius: BorderRadius.circular(20),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 24),
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              colors: [Color(0xFFF5F5F7), Colors.white],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.2),
+                blurRadius: 15,
+                offset: const Offset(0, 8),
+              )
+            ],
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              // Custom Google "G" Logo
+              SizedBox(
+                width: 24,
+                height: 24,
+                child: Stack(
+                  children: [
+                    Text(
+                      "G",
+                      style: GoogleFonts.roboto(
+                        color: const Color(0xFF4285F4),
+                        fontWeight: FontWeight.w900,
+                        fontSize: 22,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 16),
+              Text(
+                "Sign in with Google",
+                style: GoogleFonts.outfit(
+                  fontSize: 17,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black87,
+                  letterSpacing: -0.2,
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

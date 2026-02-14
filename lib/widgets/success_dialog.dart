@@ -38,10 +38,11 @@ class SuccessDialog extends StatelessWidget {
         decoration: BoxDecoration(
           color: AppTheme.surfaceColor,
           borderRadius: BorderRadius.circular(28),
-          border: Border.all(color: AppTheme.primaryColor.withOpacity(0.2)),
+          border:
+              Border.all(color: AppTheme.primaryColor.withValues(alpha: 0.2)),
           boxShadow: [
             BoxShadow(
-              color: AppTheme.primaryColor.withOpacity(0.1),
+              color: AppTheme.primaryColor.withValues(alpha: 0.1),
               blurRadius: 20,
               spreadRadius: 5,
             )
@@ -53,7 +54,7 @@ class SuccessDialog extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
-                color: AppTheme.primaryColor.withOpacity(0.1),
+                color: AppTheme.primaryColor.withValues(alpha: 0.1),
                 shape: BoxShape.circle,
               ),
               child: const Icon(

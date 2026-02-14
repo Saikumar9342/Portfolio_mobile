@@ -70,12 +70,12 @@ class _HomeScreenState extends State<HomeScreen> {
               height: 300,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color:
-                    const Color.fromARGB(255, 223, 217, 203).withOpacity(0.12),
+                color: const Color.fromARGB(255, 223, 217, 203)
+                    .withValues(alpha: 0.12),
                 boxShadow: [
                   BoxShadow(
                     color: const Color.fromARGB(255, 224, 214, 191)
-                        .withOpacity(0.15),
+                        .withValues(alpha: 0.15),
                     blurRadius: 120,
                     spreadRadius: 20,
                   ),
@@ -91,10 +91,10 @@ class _HomeScreenState extends State<HomeScreen> {
               height: 200,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: Colors.blueAccent.withOpacity(0.08),
+                color: Colors.blueAccent.withValues(alpha: 0.08),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.blueAccent.withOpacity(0.08),
+                    color: Colors.blueAccent.withValues(alpha: 0.08),
                     blurRadius: 100,
                     spreadRadius: 10,
                   ),
@@ -139,7 +139,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         style: GoogleFonts.inter(
                           fontSize: 12,
                           fontWeight: FontWeight.w600,
-                          color: AppTheme.textSecondary.withOpacity(0.7),
+                          color: AppTheme.textSecondary.withValues(alpha: 0.7),
                           letterSpacing: 1.5,
                         ),
                       ),
@@ -190,7 +190,8 @@ class _HomeScreenState extends State<HomeScreen> {
                               style: GoogleFonts.inter(
                                 fontSize: 12,
                                 fontWeight: FontWeight.bold,
-                                color: AppTheme.textSecondary.withOpacity(0.5),
+                                color: AppTheme.textSecondary
+                                    .withValues(alpha: 0.5),
                                 letterSpacing: 1.2,
                               ),
                             ),
@@ -201,7 +202,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                 decoration: BoxDecoration(
                                   gradient: LinearGradient(
                                     colors: [
-                                      Colors.white.withOpacity(0.1),
+                                      Colors.white.withValues(alpha: 0.1),
                                       Colors.transparent
                                     ],
                                   ),
@@ -281,7 +282,8 @@ class _HomeScreenState extends State<HomeScreen> {
                           style: GoogleFonts.inter(
                             fontSize: 12,
                             fontWeight: FontWeight.bold,
-                            color: AppTheme.textSecondary.withOpacity(0.5),
+                            color:
+                                AppTheme.textSecondary.withValues(alpha: 0.5),
                             letterSpacing: 1.2,
                           ),
                         ),
@@ -289,7 +291,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         Expanded(
                             child: Container(
                                 height: 1,
-                                color: Colors.white.withOpacity(0.05))),
+                                color: Colors.white.withValues(alpha: 0.05))),
                       ],
                     ),
                   ),
@@ -398,11 +400,11 @@ class _QuickActionCard extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-                color: color.withOpacity(0.15),
+                color: color.withValues(alpha: 0.15),
                 shape: BoxShape.circle,
                 boxShadow: [
                   BoxShadow(
-                    color: color.withOpacity(0.2),
+                    color: color.withValues(alpha: 0.2),
                     blurRadius: 12,
                     spreadRadius: 0,
                   )
@@ -445,7 +447,8 @@ class _ContentItem extends StatelessWidget {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(icon, color: AppTheme.textSecondary.withOpacity(0.8), size: 36),
+          Icon(icon,
+              color: AppTheme.textSecondary.withValues(alpha: 0.8), size: 36),
           const SizedBox(height: 16),
           Text(
             title,
