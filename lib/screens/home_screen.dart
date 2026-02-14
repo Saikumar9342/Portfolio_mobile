@@ -9,6 +9,7 @@ import 'projects_screen.dart';
 import 'skills_manager_screen.dart';
 import 'resume_upload_screen.dart';
 import 'profile_screen.dart';
+import '../widgets/brand_logo.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -115,12 +116,20 @@ class _HomeScreenState extends State<HomeScreen> {
                 title: AnimatedOpacity(
                   duration: const Duration(milliseconds: 200),
                   opacity: _showTitle ? 1.0 : 0.0,
-                  child: Text(
-                    'Dashboard',
-                    style: GoogleFonts.outfit(
-                      fontWeight: FontWeight.bold,
-                      color: AppTheme.textPrimary,
-                    ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const BrandLogo(size: 28),
+                      const SizedBox(width: 12),
+                      Text(
+                        'ATOM',
+                        style: GoogleFonts.outfit(
+                          fontWeight: FontWeight.bold,
+                          color: AppTheme.textPrimary,
+                          letterSpacing: 1.2,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
                 centerTitle: false,

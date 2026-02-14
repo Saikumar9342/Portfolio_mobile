@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'dart:async';
+import 'package:google_sign_in/google_sign_in.dart';
 import '../theme/app_theme.dart';
-import '../widgets/action_dialog.dart';
 import '../services/seed_data.dart';
+import '../widgets/action_dialog.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -14,85 +14,52 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
-  final TextEditingController _nameController = TextEditingController();
-  final TextEditingController _emailController = TextEditingController();
+  final _nameController = TextEditingController();
+  final _emailController = TextEditingController();
   bool _isLoading = false;
   bool _isNameEditing = false;
-  late StreamSubscription<User?> _userSubscription;
 
   @override
   void initState() {
     super.initState();
-    _initializeUser();
-
-    // Listen to user changes to update UI if auth state refreshes
-    _userSubscription = FirebaseAuth.instance.userChanges().listen((user) {
-      if (mounted && !_isNameEditing) {
-        setState(() {
-          // Update only if the field is empty to prevent overwriting user input
-          if (_nameController.text.isEmpty) {
-            _nameController.text =
-                (user?.displayName != null && user!.displayName!.isNotEmpty)
-                    ? user.displayName!
-                    : 'Saikumar';
-          }
-          _emailController.text = user?.email ?? 'saikumar@example.com';
-        });
-      }
-    });
-  }
-
-  void _initializeUser() {
-    final user = FirebaseAuth.instance.currentUser;
-    _nameController.text =
-        (user?.displayName != null && user!.displayName!.isNotEmpty)
-            ? user.displayName!
-            : 'Saikumar';
-    _emailController.text = user?.email ?? 'saikumar@example.com';
+    _loadUserData();
   }
 
   @override
   void dispose() {
-    _userSubscription.cancel();
     _nameController.dispose();
     _emailController.dispose();
     super.dispose();
   }
 
-  Future<void> _updateProfile() async {
+  void _loadUserData() {
     final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return;
-
-    if (_nameController.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-            content: Text('Name cannot be empty'),
-            backgroundColor: AppTheme.errorColor),
-      );
-      return;
+    if (user != null) {
+      _nameController.text =
+          (user.displayName != null && user.displayName!.isNotEmpty)
+              ? user.displayName!
+              : 'Saikumar';
+      _emailController.text = user.email ?? '';
     }
+  }
 
+  Future<void> _updateProfile() async {
     setState(() => _isLoading = true);
     try {
-      await user.updateDisplayName(_nameController.text.trim());
-      await user.reload();
-
-      if (mounted) {
-        setState(() => _isNameEditing = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Profile updated successfully'),
-            backgroundColor: AppTheme.primaryColor,
-          ),
-        );
+      final user = FirebaseAuth.instance.currentUser;
+      if (user != null) {
+        await user.updateDisplayName(_nameController.text);
+        if (mounted) {
+          setState(() => _isNameEditing = false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text("Profile updated successfully!")),
+          );
+        }
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error updating profile: $e'),
-            backgroundColor: AppTheme.errorColor,
-          ),
+          SnackBar(content: Text("Failed to update profile: $e")),
         );
       }
     } finally {
@@ -100,247 +67,236 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
-  Future<void> _seedDatabase() async {
-    ActionDialog.show(
-      context,
-      title: "Reset Database?",
-      message:
-          "This will restore all portfolio data to defaults. All your custom changes will be lost.",
-      confirmLabel: "RESET NOW",
-      type: ActionDialogType.warning,
-      onConfirm: () async {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-              content: Text('Resetting database...'),
-              backgroundColor: AppTheme.surfaceColor),
-        );
-
-        await DataSeeder().seedAllData();
-
-        if (!mounted) return;
-        ActionDialog.show(
-          context,
-          title: "Database Reset",
-          message:
-              "Your portfolio database has been restored to default settings successfully.",
-          onConfirm: () {},
-        );
-      },
-      onCancel: () {},
-    );
-  }
-
   Future<void> _handleLogout() async {
-    ActionDialog.show(
+    final confirm = await ActionDialog.show(
       context,
-      title: "Sign Out?",
+      title: "Sign Out",
       message: "Are you sure you want to sign out?",
       confirmLabel: "SIGN OUT",
-      type: ActionDialogType.warning,
-      onConfirm: () async {
-        await FirebaseAuth.instance.signOut();
-        if (mounted) {
-          Navigator.of(context).popUntil((route) => route.isFirst);
-        }
-      },
-      onCancel: () {},
+      type: ActionDialogType.danger,
+      onConfirm: () {},
     );
+
+    if (confirm == true) {
+      try {
+        await GoogleSignIn().signOut();
+        await FirebaseAuth.instance.signOut();
+      } catch (e) {
+        debugPrint("Error during sign out: $e");
+        await FirebaseAuth.instance.signOut();
+      }
+      if (mounted) {
+        Navigator.pop(context);
+      }
+    }
+  }
+
+  Future<void> _seedDatabase() async {
+    final confirm = await ActionDialog.show(
+      context,
+      title: "Reset Database",
+      message:
+          "This will overwrite your existing 'about', 'contact', 'hero', 'skills', and 'expertise' data with default mock data. Projects will remain. Continue?",
+      confirmLabel: "RESET NOW",
+      type: ActionDialogType.warning,
+      onConfirm: () {},
+    );
+
+    if (confirm == true) {
+      setState(() => _isLoading = true);
+      try {
+        await DataSeeder().seedAllData();
+        if (mounted) {
+          ActionDialog.show(
+            context,
+            title: "Database Reset",
+            message:
+                "All non-project data has been restored to default values.",
+            onConfirm: () {},
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text("Failed to reset database: $e")),
+          );
+        }
+      } finally {
+        if (mounted) setState(() => _isLoading = false);
+      }
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
+
     return Scaffold(
       backgroundColor: AppTheme.scaffoldBackgroundColor,
-      appBar: AppBar(
-        title: Text(
-          "My Profile",
-          style: GoogleFonts.outfit(
-            fontWeight: FontWeight.bold,
-            color: AppTheme.textPrimary,
-          ),
-        ),
-        centerTitle: true,
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded,
-              color: AppTheme.textPrimary),
-          onPressed: () => Navigator.pop(context),
-        ),
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
+      body: CustomScrollView(
         physics: const BouncingScrollPhysics(),
-        child: Column(
-          children: [
-            // Avatar & Header
-            Center(
-              child: Column(
-                children: [
-                  Container(
-                    width: 100,
-                    height: 100,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      gradient: const LinearGradient(
-                        colors: [Color(0xFFC6A969), Color(0xFFE5D5A8)],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: const Color(0xFFC6A969).withValues(alpha: 0.3),
-                          blurRadius: 20,
-                          spreadRadius: 5,
-                        )
-                      ],
-                    ),
-                    child: Center(
-                      child: Text(
-                        (_nameController.text.isNotEmpty
-                                ? _nameController.text[0]
-                                : 'S')
-                            .toUpperCase(),
-                        style: GoogleFonts.outfit(
-                          fontSize: 40,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
+        slivers: [
+          SliverAppBar(
+            pinned: true,
+            backgroundColor: AppTheme.scaffoldBackgroundColor,
+            surfaceTintColor: Colors.transparent,
+            leading: IconButton(
+              icon: const Icon(Icons.arrow_back_ios_new_rounded,
+                  color: AppTheme.textPrimary),
+              onPressed: () => Navigator.pop(context),
+            ),
+            title: const SizedBox.shrink(),
+            centerTitle: false,
+          ),
+          SliverPadding(
+            padding: const EdgeInsets.all(20),
+            sliver: SliverList(
+              delegate: SliverChildListDelegate([
+                Center(
+                  child: Column(
+                    children: [
+                      Container(
+                        width: 100,
+                        height: 100,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          gradient: const LinearGradient(
+                            colors: [Color(0xFFC6A969), Color(0xFFE5D5A8)],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: const Color(0xFFC6A969)
+                                  .withValues(alpha: 0.3),
+                              blurRadius: 20,
+                              spreadRadius: 5,
+                            )
+                          ],
+                        ),
+                        child: Center(
+                          child: Text(
+                            (_nameController.text.isNotEmpty
+                                    ? _nameController.text[0]
+                                    : 'S')
+                                .toUpperCase(),
+                            style: GoogleFonts.outfit(
+                              fontSize: 40,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
                         ),
                       ),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    user?.email ?? 'Signed in',
-                    style: GoogleFonts.inter(
-                      fontSize: 14,
-                      color: AppTheme.textSecondary,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 40),
-
-            // Profile Fields
-            _buildSectionHeader("PERSONAL INFO"),
-            const SizedBox(height: 16),
-            _buildTextField(
-              label: "Display Name",
-              controller: _nameController,
-              icon: Icons.person_outline_rounded,
-              isEditing: _isNameEditing,
-              onEditPressed: () {
-                setState(() {
-                  if (_isNameEditing) {
-                    // Cancelling edit: Revert to original
-                    final user = FirebaseAuth.instance.currentUser;
-                    _nameController.text = (user?.displayName != null &&
-                            user!.displayName!.isNotEmpty)
-                        ? user.displayName!
-                        : 'Saikumar';
-                  }
-                  _isNameEditing = !_isNameEditing;
-                });
-              },
-            ),
-            const SizedBox(height: 16),
-            _buildTextField(
-              label: "Email Address",
-              controller: _emailController,
-              icon: Icons.email_outlined,
-              isEditing: false,
-            ),
-
-            const SizedBox(height: 24),
-            SizedBox(
-              width: double.infinity,
-              height: 54,
-              child: ElevatedButton(
-                onPressed: _isLoading ? null : _updateProfile,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppTheme.primaryColor,
-                  disabledBackgroundColor:
-                      AppTheme.primaryColor.withValues(alpha: 0.5),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
+                      const SizedBox(height: 16),
+                      Text(
+                        user?.email ?? 'Signed in',
+                        style: GoogleFonts.inter(
+                          fontSize: 14,
+                          color: AppTheme.textSecondary,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-                child: _isLoading
-                    ? const SizedBox(
-                        width: 24,
-                        height: 24,
-                        child: CircularProgressIndicator(
-                          color: Colors.white,
-                          strokeWidth: 2,
-                        ),
-                      )
-                    : Text(
-                        "SAVE CHANGES",
-                        style: GoogleFonts.outfit(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                          letterSpacing: 1,
-                        ),
+                const SizedBox(height: 40),
+                _buildSectionHeader("PERSONAL INFO"),
+                const SizedBox(height: 16),
+                _buildTextField(
+                  label: "Display Name",
+                  controller: _nameController,
+                  icon: Icons.person_outline_rounded,
+                  isEditing: _isNameEditing,
+                  onEditPressed: () {
+                    setState(() {
+                      if (_isNameEditing) {
+                        final user = FirebaseAuth.instance.currentUser;
+                        _nameController.text = (user?.displayName != null &&
+                                user!.displayName!.isNotEmpty)
+                            ? user.displayName!
+                            : 'Saikumar';
+                      }
+                      _isNameEditing = !_isNameEditing;
+                    });
+                  },
+                ),
+                const SizedBox(height: 16),
+                _buildTextField(
+                  label: "Email Address",
+                  controller: _emailController,
+                  icon: Icons.email_outlined,
+                  isEditing: false,
+                ),
+                const SizedBox(height: 24),
+                SizedBox(
+                  width: double.infinity,
+                  height: 54,
+                  child: ElevatedButton(
+                    onPressed: _isLoading ? null : _updateProfile,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppTheme.primaryColor,
+                      disabledBackgroundColor:
+                          AppTheme.primaryColor.withValues(alpha: 0.5),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
                       ),
-              ),
+                    ),
+                    child: _isLoading
+                        ? const SizedBox(
+                            width: 24,
+                            height: 24,
+                            child: CircularProgressIndicator(
+                              color: Colors.white,
+                              strokeWidth: 2,
+                            ),
+                          )
+                        : Text(
+                            "SAVE CHANGES",
+                            style: GoogleFonts.outfit(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                              letterSpacing: 1,
+                            ),
+                          ),
+                  ),
+                ),
+                const SizedBox(height: 32),
+                _buildSectionHeader("APP SETTINGS"),
+                const SizedBox(height: 16),
+                _buildActionCard(
+                  title: "Reset Database",
+                  subtitle: "Restore all data to default mock data",
+                  icon: Icons.refresh_rounded,
+                  color: Colors.orange,
+                  onTap: _seedDatabase,
+                ),
+                const SizedBox(height: 16),
+                _buildActionCard(
+                  title: "Sign Out",
+                  subtitle: "Log out of your account",
+                  icon: Icons.logout_rounded,
+                  color: AppTheme.errorColor,
+                  onTap: _handleLogout,
+                ),
+                const SizedBox(height: 80),
+              ]),
             ),
-
-            const SizedBox(height: 32),
-
-            // App Settings
-            _buildSectionHeader("APP SETTINGS"),
-            const SizedBox(height: 16),
-            _buildActionCard(
-              title: "Reset Database",
-              subtitle: "Restore all data to default mock data",
-              icon: Icons.refresh_rounded,
-              color: Colors.orange,
-              onTap: _seedDatabase,
-            ),
-            const SizedBox(height: 16),
-            _buildActionCard(
-              title: "Sign Out",
-              subtitle: "Log out of your account",
-              icon: Icons.logout_rounded,
-              color: AppTheme.errorColor,
-              onTap: _handleLogout,
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
 
   Widget _buildSectionHeader(String title) {
-    return Row(
-      children: [
-        Text(
-          title,
-          style: GoogleFonts.inter(
-            fontSize: 12,
-            fontWeight: FontWeight.bold,
-            color: AppTheme.textSecondary.withValues(alpha: 0.5),
-            letterSpacing: 1.2,
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Container(
-            height: 1,
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  Colors.white.withValues(alpha: 0.1),
-                  Colors.transparent
-                ],
-              ),
-            ),
-          ),
-        ),
-      ],
+    return Text(
+      title,
+      style: GoogleFonts.outfit(
+        fontSize: 12,
+        fontWeight: FontWeight.bold,
+        color: AppTheme.textSecondary.withValues(alpha: 0.5),
+        letterSpacing: 1.2,
+      ),
     );
   }
 
@@ -348,64 +304,63 @@ class _ProfileScreenState extends State<ProfileScreen> {
     required String label,
     required TextEditingController controller,
     required IconData icon,
-    bool isEditing = true,
+    required bool isEditing,
     VoidCallback? onEditPressed,
   }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: GoogleFonts.inter(
-            fontSize: 13,
-            fontWeight: FontWeight.w500,
-            color: AppTheme.textSecondary,
-          ),
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      decoration: BoxDecoration(
+        color: AppTheme.inputFillColor,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isEditing ? AppTheme.primaryColor : Colors.white10,
         ),
-        const SizedBox(height: 8),
-        Container(
-          decoration: BoxDecoration(
-            color: AppTheme.surfaceColor,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: isEditing
-                  ? AppTheme.primaryColor.withValues(alpha: 0.5)
-                  : Colors.white.withValues(alpha: 0.05),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, color: AppTheme.textSecondary, size: 20),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label.toUpperCase(),
+                  style: GoogleFonts.outfit(
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                    color: AppTheme.textSecondary.withValues(alpha: 0.5),
+                    letterSpacing: 1.2,
+                  ),
+                ),
+                TextField(
+                  controller: controller,
+                  enabled: isEditing,
+                  style: GoogleFonts.inter(
+                    fontSize: 16,
+                    color: Colors.white,
+                    fontWeight: FontWeight.w500,
+                  ),
+                  decoration: const InputDecoration(
+                    isDense: true,
+                    border: InputBorder.none,
+                    contentPadding: EdgeInsets.symmetric(vertical: 4),
+                  ),
+                ),
+              ],
             ),
           ),
-          child: TextField(
-            controller: controller,
-            enabled: true, // Always true to allow suffix icon interaction
-            readOnly: !isEditing, // Control editing here
-            style: GoogleFonts.outfit(
-              fontSize: 16,
-              color: AppTheme.textPrimary,
-              fontWeight: FontWeight.w500,
+          if (onEditPressed != null)
+            IconButton(
+              icon: Icon(
+                isEditing ? Icons.close_rounded : Icons.edit_rounded,
+                color: isEditing ? AppTheme.errorColor : AppTheme.primaryColor,
+                size: 20,
+              ),
+              onPressed: onEditPressed,
             ),
-            decoration: InputDecoration(
-              prefixIcon: Icon(icon,
-                  color: isEditing
-                      ? AppTheme.primaryColor
-                      : AppTheme.textSecondary.withValues(alpha: 0.5)),
-              suffixIcon: onEditPressed != null
-                  ? IconButton(
-                      icon: Icon(
-                        isEditing ? Icons.close_rounded : Icons.edit_rounded,
-                        color: isEditing
-                            ? AppTheme.textSecondary
-                            : AppTheme.primaryColor,
-                        size: 20,
-                      ),
-                      onPressed: onEditPressed,
-                    )
-                  : null,
-              border: InputBorder.none,
-              contentPadding:
-                  const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-            ),
-          ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
@@ -416,59 +371,56 @@ class _ProfileScreenState extends State<ProfileScreen> {
     required Color color,
     required VoidCallback onTap,
   }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: AppTheme.surfaceColor,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.05),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.1),
-                shape: BoxShape.circle,
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.05),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: color.withValues(alpha: 0.1)),
+          ),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(icon, color: color),
               ),
-              child: Icon(icon, color: color, size: 24),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: GoogleFonts.outfit(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                      color: AppTheme.textPrimary,
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: GoogleFonts.outfit(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    subtitle,
-                    style: GoogleFonts.inter(
-                      fontSize: 12,
-                      color: AppTheme.textSecondary.withValues(alpha: 0.7),
+                    const SizedBox(height: 4),
+                    Text(
+                      subtitle,
+                      style: GoogleFonts.inter(
+                        fontSize: 12,
+                        color: AppTheme.textSecondary,
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
-            Icon(Icons.chevron_right_rounded,
-                color: AppTheme.textSecondary.withValues(alpha: 0.5)),
-          ],
+              Icon(Icons.chevron_right_rounded,
+                  color: color.withValues(alpha: 0.5)),
+            ],
+          ),
         ),
       ),
     );

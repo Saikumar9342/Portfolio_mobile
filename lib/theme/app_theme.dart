@@ -5,11 +5,15 @@ class AppTheme {
   // Colors
   static const Color primaryColor = Color(0xFFC6A969); // Elegant Gold Accent
   static const Color scaffoldBackgroundColor = Color(0xFF101010); // Deep Black
+  static const Color backgroundColor = scaffoldBackgroundColor;
   static const Color surfaceColor = Color(0xFF1E1E1E); // Card Background
   static const Color inputFillColor = Color(0xFF2C2C2C); // Input Field
   static const Color textPrimary = Color(0xFFF5F5F7); // Whiteish
   static const Color textSecondary = Color(0xFFAAAAAA); // Grey
   static const Color errorColor = Color(0xFFE57373); // Muted Red
+
+  // Atomiq / Atom Brand compatibility aliases (if needed by code)
+  static const Color accentColor = primaryColor;
 
   static ThemeData get darkTheme {
     return ThemeData(

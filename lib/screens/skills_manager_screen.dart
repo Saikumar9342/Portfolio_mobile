@@ -15,12 +15,6 @@ class SkillsManagerScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppTheme.scaffoldBackgroundColor,
-      appBar: AppBar(
-        title: Text('Manage Skills',
-            style: GoogleFonts.outfit(fontWeight: FontWeight.bold)),
-        backgroundColor: AppTheme.scaffoldBackgroundColor,
-        surfaceTintColor: Colors.transparent,
-      ),
       body: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
         stream: FirestoreService().streamContent('skills'),
         builder: (context, snapshot) {
@@ -35,38 +29,59 @@ class SkillsManagerScreen extends StatelessWidget {
           final data = snapshot.data!.data() ?? {};
           final sections = _parseSections(data);
 
-          return SingleChildScrollView(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _buildHeaderSection(context, data),
-                const SizedBox(height: 24),
-                Text(
-                  "SKILL SECTIONS",
-                  style: GoogleFonts.inter(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: AppTheme.textSecondary,
-                    letterSpacing: 1.0,
+          return CustomScrollView(
+            physics: const BouncingScrollPhysics(),
+            slivers: [
+              SliverAppBar.large(
+                pinned: true,
+                backgroundColor: AppTheme.scaffoldBackgroundColor,
+                surfaceTintColor: Colors.transparent,
+                leading: IconButton(
+                  icon: const Icon(Icons.arrow_back_ios_new_rounded,
+                      color: AppTheme.textPrimary),
+                  onPressed: () => Navigator.pop(context),
+                ),
+                title: Text(
+                  'Manage Skills',
+                  style: GoogleFonts.outfit(
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
-                const SizedBox(height: 16),
-                if (sections.isEmpty)
-                  const Center(
-                      child: Text("No skill sections found",
-                          style: TextStyle(color: Colors.white54))),
-                ...sections
-                    .map((section) => _buildSectionCard(context, section)),
-                const SizedBox(height: 24),
-                PrimaryButton(
-                  text: "ADD NEW SECTION",
-                  icon: Icons.add,
-                  onPressed: () => _addNewSection(context),
+                centerTitle: false,
+              ),
+              SliverPadding(
+                padding: const EdgeInsets.all(20),
+                sliver: SliverList(
+                  delegate: SliverChildListDelegate([
+                    _buildHeaderSection(context, data),
+                    const SizedBox(height: 32),
+                    Text(
+                      "SKILL SECTIONS",
+                      style: GoogleFonts.outfit(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: AppTheme.textSecondary.withValues(alpha: 0.5),
+                        letterSpacing: 1.2,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    if (sections.isEmpty)
+                      const Center(
+                          child: Text("No skill sections found",
+                              style: TextStyle(color: Colors.white54))),
+                    ...sections
+                        .map((section) => _buildSectionCard(context, section)),
+                    const SizedBox(height: 24),
+                    PrimaryButton(
+                      text: "ADD NEW SECTION",
+                      icon: Icons.add,
+                      onPressed: () => _addNewSection(context),
+                    ),
+                    const SizedBox(height: 40),
+                  ]),
                 ),
-                const SizedBox(height: 40),
-              ],
-            ),
+              ),
+            ],
           );
         },
       ),
@@ -75,15 +90,10 @@ class SkillsManagerScreen extends StatelessWidget {
 
   List<_SkillSection> _parseSections(Map<String, dynamic> data) {
     final sections = <_SkillSection>[];
-
     data.forEach((key, value) {
-      // We identify a section by the list data.
-      // The Web App logic: it filters keys that are NOT arrays.
-      // So any Array in this document is effectively a Skill Section.
       if (value is List) {
         final titleKey = '${key}Title';
-        final title =
-            data[titleKey] as String? ?? key; // Fallback to key if no title
+        final title = data[titleKey] as String? ?? key;
         sections.add(_SkillSection(
             id: key,
             titleKey: titleKey,
@@ -93,9 +103,6 @@ class SkillsManagerScreen extends StatelessWidget {
                 .contains(key)));
       }
     });
-
-    // Sort: Standard ones first, then custom
-    // Simple sort by ID for now or defined order
     return sections;
   }
 
@@ -161,7 +168,7 @@ class SkillsManagerScreen extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    section.title, // Display Name
+                    section.title,
                     style: GoogleFonts.outfit(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
@@ -257,10 +264,8 @@ class SkillsManagerScreen extends StatelessWidget {
               final key = keyCtrl.text.trim().toLowerCase();
               final title = titleCtrl.text.trim();
               if (key.isNotEmpty && title.isNotEmpty) {
-                await FirestoreService().updateContent('skills', {
-                  key: [], // Empty list
-                  '${key}Title': title
-                });
+                await FirestoreService()
+                    .updateContent('skills', {key: [], '${key}Title': title});
                 if (ctx.mounted) Navigator.pop(ctx);
               }
             },

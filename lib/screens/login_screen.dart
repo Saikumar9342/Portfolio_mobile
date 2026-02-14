@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import '../theme/app_theme.dart';
+import '../widgets/brand_logo.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -153,7 +154,7 @@ class _LoginScreenState extends State<LoginScreen>
     final size = MediaQuery.of(context).size;
 
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor: AppTheme.backgroundColor,
       body: Stack(
         children: [
           // 1. Cinematic Animated Background Blobs
@@ -174,7 +175,7 @@ class _LoginScreenState extends State<LoginScreen>
                     bottom: size.height * (0.05 - _bgMoveAnimation.value),
                     left: -size.width * 0.3,
                     child: _buildBlob(
-                      color: const Color(0xFF624C24).withValues(alpha: 0.1),
+                      color: AppTheme.primaryColor.withValues(alpha: 0.1),
                       size: 500,
                     ),
                   ),
@@ -198,9 +199,9 @@ class _LoginScreenState extends State<LoginScreen>
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
                 colors: [
-                  Colors.black.withValues(alpha: 0.8),
+                  AppTheme.backgroundColor.withValues(alpha: 0.8),
                   Colors.transparent,
-                  Colors.black.withValues(alpha: 0.9),
+                  AppTheme.backgroundColor.withValues(alpha: 0.9),
                 ],
               ),
             ),
@@ -231,35 +232,25 @@ class _LoginScreenState extends State<LoginScreen>
                     },
                     child: Column(
                       children: [
-                        _buildAnimatedLogo(),
+                        _buildBrandIcon(),
                         const SizedBox(height: 48),
                         Text(
-                          "PORTFOLIO",
+                          "ATOM",
                           style: GoogleFonts.outfit(
-                            fontSize: 14,
-                            fontWeight: FontWeight.bold,
-                            color: AppTheme.primaryColor,
-                            letterSpacing: 8,
+                            fontSize: 32,
+                            fontWeight: FontWeight.w900,
+                            color: Colors.white,
+                            letterSpacing: 16,
                           ),
                         ),
                         const SizedBox(height: 12),
                         Text(
-                          "Admin Console",
-                          style: GoogleFonts.outfit(
-                            fontSize: 42,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                            height: 1.1,
-                            letterSpacing: -1,
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          "Authorized Access Only",
+                          "Portfolio Builder",
                           style: GoogleFonts.inter(
                             fontSize: 14,
-                            color: Colors.white38,
-                            letterSpacing: 1,
+                            color:
+                                AppTheme.textSecondary.withValues(alpha: 0.6),
+                            letterSpacing: 2,
                           ),
                         ),
                       ],
@@ -419,66 +410,30 @@ class _LoginScreenState extends State<LoginScreen>
     );
   }
 
-  Widget _buildAnimatedLogo() {
+  Widget _buildBrandIcon() {
     return SizedBox(
-      width: 120,
-      height: 120,
+      width: 140,
+      height: 140,
       child: Stack(
         alignment: Alignment.center,
         children: [
-          // Outer Rotating Ring
-          AnimatedBuilder(
-            animation: _bgAnimationController,
-            builder: (context, child) {
-              return Transform.rotate(
-                angle: _bgAnimationController.value * 2 * 3.14159,
-                child: Container(
-                  width: 110,
-                  height: 110,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    border: Border.all(
-                      color: AppTheme.primaryColor.withValues(alpha: 0.1),
-                      width: 2,
-                    ),
-                  ),
-                ),
-              );
-            },
-          ),
-          // Inner Static Ring
+          // Background Glow
           Container(
-            width: 90,
-            height: 90,
+            width: 100,
+            height: 100,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              border: Border.all(
-                color: AppTheme.primaryColor.withValues(alpha: 0.4),
-                width: 1,
-              ),
-            ),
-          ),
-          // Core Circle
-          Container(
-            width: 70,
-            height: 70,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: AppTheme.primaryColor,
               boxShadow: [
                 BoxShadow(
-                  color: AppTheme.primaryColor.withValues(alpha: 0.4),
-                  blurRadius: 30,
-                  spreadRadius: 2,
+                  color: AppTheme.primaryColor.withValues(alpha: 0.3),
+                  blurRadius: 40,
+                  spreadRadius: 10,
                 )
               ],
             ),
-            child: const Icon(
-              Icons.admin_panel_settings_rounded,
-              color: Colors.black,
-              size: 36,
-            ),
           ),
+          // Shared Logo Widget
+          const BrandLogo(size: 80),
         ],
       ),
     );

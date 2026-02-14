@@ -5,13 +5,13 @@ import 'firebase_options.dart';
 import 'screens/home_screen.dart';
 import 'screens/login_screen.dart';
 import 'theme/app_theme.dart';
+import 'widgets/brand_logo.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
-  // Fix for: Ignoring header X-Firebase-Locale because its value was null
   try {
     await FirebaseAuth.instance.setLanguageCode('en');
   } catch (e) {
@@ -27,7 +27,7 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Portfolio Admin',
+      title: 'Atom Portfolio',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.darkTheme,
       home: const _AuthWrapper(),
@@ -48,7 +48,6 @@ class _AuthWrapperState extends State<_AuthWrapper> {
   @override
   void initState() {
     super.initState();
-    // Ensure splash is visible for at least 3 seconds (animation duration + buffer)
     Future.delayed(const Duration(seconds: 3), () {
       if (mounted) {
         setState(() => _showSplash = false);
@@ -66,12 +65,12 @@ class _AuthWrapperState extends State<_AuthWrapper> {
       stream: FirebaseAuth.instance.authStateChanges(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          // Should rarely happen here as we already waited 3s, but safe fallback
           return const Scaffold(
-              backgroundColor: AppTheme.scaffoldBackgroundColor,
-              body: Center(
-                  child:
-                      CircularProgressIndicator(color: AppTheme.primaryColor)));
+            backgroundColor: AppTheme.scaffoldBackgroundColor,
+            body: Center(
+              child: CircularProgressIndicator(color: AppTheme.primaryColor),
+            ),
+          );
         }
         if (snapshot.data == null) {
           return const LoginScreen();
@@ -99,7 +98,9 @@ class _SplashScreenState extends State<SplashScreen>
   void initState() {
     super.initState();
     _controller = AnimationController(
-        vsync: this, duration: const Duration(milliseconds: 2000));
+      vsync: this,
+      duration: const Duration(milliseconds: 2000),
+    );
 
     _scaleAnimation = Tween<double>(begin: 0.8, end: 1.0).animate(
       CurvedAnimation(parent: _controller, curve: Curves.easeOutBack),
@@ -133,63 +134,21 @@ class _SplashScreenState extends State<SplashScreen>
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    // Minimal Elegant Logo
-                    Container(
-                      width: 100,
-                      height: 100,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        border: Border.all(
-                            color: AppTheme.primaryColor.withValues(alpha: 0.5),
-                            width: 1),
-                        boxShadow: [
-                          BoxShadow(
-                            color: AppTheme.primaryColor.withValues(alpha: 0.1),
-                            blurRadius: 30,
-                            spreadRadius: 10,
-                          ),
-                        ],
-                      ),
-                      child: Center(
-                        child: Container(
-                          width: 80,
-                          height: 80,
-                          decoration: const BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: AppTheme.primaryColor,
-                          ),
-                          child: const Icon(
-                            Icons.admin_panel_settings_rounded,
-                            color: Colors.black,
-                            size: 40,
-                          ),
-                        ),
-                      ),
-                    ),
+                    const BrandLogo(size: 80),
                     const SizedBox(height: 48),
                     Text(
-                      "PORTFOLIO",
+                      "ATOM",
                       style: GoogleFonts.outfit(
-                        fontSize: 14,
-                        fontWeight: FontWeight.bold,
-                        color: AppTheme.primaryColor,
-                        letterSpacing: 4,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      "ADMIN CONSOLE",
-                      style: GoogleFonts.outfit(
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
-                        color: AppTheme.textPrimary,
-                        letterSpacing: 1.5,
+                        fontSize: 32,
+                        fontWeight: FontWeight.w900,
+                        color: Colors.white,
+                        letterSpacing: 16,
                       ),
                     ),
                     const SizedBox(height: 60),
                     const SizedBox(
-                      width: 20,
-                      height: 20,
+                      width: 24,
+                      height: 24,
                       child: CircularProgressIndicator(
                         strokeWidth: 2,
                         color: AppTheme.primaryColor,

@@ -18,26 +18,23 @@ allprojects {
     }
 }
 
-val newBuildDir: Directory =
-    rootProject.layout.buildDirectory
-        .dir("../../build")
-        .get()
-rootProject.layout.buildDirectory.value(newBuildDir)
-
-subprojects {
-    val newSubprojectBuildDir: Directory = newBuildDir.dir(project.name)
-    project.layout.buildDirectory.value(newSubprojectBuildDir)
-}
+// Targeted fix for the cross-drive path issue on Windows.
+// Some plugins live in the Pub cache (C:), while the project is on E:.
 subprojects {
     project.evaluationDependsOn(":app")
-}
-
-subprojects {
-    // Force all Android/Flutter plugin modules to compile with Java 11.
-    // This removes "source/target value 8 is obsolete" warnings from plugin subprojects.
+    
+    // Force all modules to compile with Java 11.
     tasks.withType<JavaCompile>().configureEach {
         sourceCompatibility = JavaVersion.VERSION_11.toString()
         targetCompatibility = JavaVersion.VERSION_11.toString()
+    }
+
+    // Move plugin build directories to C: drive if they are from the pub cache
+    // This avoids drive-root calculation errors in Gradle.
+    if (project.name != "app") {
+        val userHome = System.getProperty("user.home")
+        val fallbackBuildDir = file("$userHome/.flutter_builds_temp/${rootProject.name}/${project.name}")
+        project.layout.buildDirectory.value(project.layout.projectDirectory.dir(fallbackBuildDir.absolutePath))
     }
 }
 
