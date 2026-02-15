@@ -5,6 +5,7 @@ import 'package:google_sign_in/google_sign_in.dart';
 import '../theme/app_theme.dart';
 import '../services/seed_data.dart';
 import '../widgets/action_dialog.dart';
+import 'domain_settings_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -263,6 +264,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
                 const SizedBox(height: 32),
                 _buildSectionHeader("APP SETTINGS"),
+                const SizedBox(height: 16),
+                _buildActionCard(
+                  title: "Domain Settings",
+                  subtitle: "Configure public link and custom domain",
+                  icon: Icons.language_rounded,
+                  color: AppTheme.primaryColor,
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (_) => const DomainSettingsScreen()),
+                  ),
+                ),
                 const SizedBox(height: 16),
                 _buildActionCard(
                   title: "Reset Database",

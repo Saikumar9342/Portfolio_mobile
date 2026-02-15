@@ -4,6 +4,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 class FirestoreService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
   static const String _adminEmail = "pasumarthisaikumar6266@gmail.com";
+  static const String _defaultPublicBaseUrl =
+      "https://resume-portfolioweb.netlify.app";
 
   // --- Language Support ---
 
@@ -176,5 +178,215 @@ class FirestoreService {
 
   Future<void> deleteProject(String id, {String? languageCode}) {
     return _getProjectsCollection(languageCode: languageCode).doc(id).delete();
+  }
+
+  // --- Public URL & Domain Settings ---
+
+  String? get _currentUid => FirebaseAuth.instance.currentUser?.uid;
+
+  DocumentReference<Map<String, dynamic>> get _currentUserDoc {
+    final uid = _currentUid;
+    if (uid == null) {
+      throw StateError("User must be signed in.");
+    }
+    return _db.collection('users').doc(uid);
+  }
+
+  String _normalizeUsername(String value) {
+    final raw = value.trim().toLowerCase();
+    final normalized = raw.replaceAll(RegExp(r'[^a-z0-9-]'), '-');
+    return normalized
+        .replaceAll(RegExp(r'-{2,}'), '-')
+        .replaceAll(RegExp(r'^-+|-+$'), '');
+  }
+
+  String _normalizeDomain(String value) {
+    var raw = value.trim().toLowerCase();
+    raw = raw.replaceFirst(RegExp(r'^https?://'), '');
+    raw = raw.replaceFirst(RegExp(r'^www\.'), '');
+    if (raw.contains('/')) {
+      raw = raw.split('/').first;
+    }
+    return raw;
+  }
+
+  bool _isValidUsername(String username) {
+    final valid = RegExp(r'^[a-z0-9](?:[a-z0-9-]{1,28}[a-z0-9])?$');
+    return valid.hasMatch(username);
+  }
+
+  bool _isValidDomain(String domain) {
+    final valid = RegExp(r'^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,}$');
+    return valid.hasMatch(domain);
+  }
+
+  Stream<DocumentSnapshot<Map<String, dynamic>>> streamCurrentUserProfile() {
+    return _currentUserDoc.snapshots();
+  }
+
+  Future<void> ensureUserProfile({String? baseUrl}) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    await _currentUserDoc.set({
+      'uid': user.uid,
+      'email': user.email,
+      'displayName': user.displayName ?? '',
+      'publicBaseUrl': (baseUrl ?? _defaultPublicBaseUrl).trim(),
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+  }
+
+  Future<void> setPublicBaseUrl(String baseUrl) async {
+    final normalized = baseUrl.trim();
+    if (normalized.isEmpty) {
+      throw Exception("Base URL cannot be empty.");
+    }
+
+    await _currentUserDoc.set({
+      'publicBaseUrl': normalized,
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+  }
+
+  Future<void> setUsername(String input) async {
+    final uid = _currentUid;
+    if (uid == null) throw Exception("Please sign in again.");
+
+    final username = _normalizeUsername(input);
+    if (!_isValidUsername(username)) {
+      throw Exception(
+          "Username must be 3-30 chars and use only a-z, 0-9, hyphen.");
+    }
+
+    final userRef = _db.collection('users').doc(uid);
+    final newUsernameRef = _db.collection('usernames').doc(username);
+
+    await _db.runTransaction((tx) async {
+      final userSnap = await tx.get(userRef);
+      final oldUsername = (userSnap.data()?['username'] as String?)
+          ?.trim()
+          .toLowerCase();
+
+      final usernameSnap = await tx.get(newUsernameRef);
+      if (usernameSnap.exists) {
+        final ownerId = usernameSnap.data()?['userId'];
+        if (ownerId != uid) {
+          throw Exception("Username is already taken.");
+        }
+      }
+
+      tx.set(newUsernameRef, {
+        'userId': uid,
+        'username': username,
+        'active': true,
+        'updatedAt': FieldValue.serverTimestamp(),
+        'createdAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+
+      if (oldUsername != null &&
+          oldUsername.isNotEmpty &&
+          oldUsername != username) {
+        final oldRef = _db.collection('usernames').doc(oldUsername);
+        final oldSnap = await tx.get(oldRef);
+        if (oldSnap.exists && oldSnap.data()?['userId'] == uid) {
+          tx.delete(oldRef);
+        }
+      }
+
+      tx.set(userRef, {
+        'username': username,
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+
+      final existingDomain = (userSnap.data()?['customDomain'] as String?)
+          ?.trim()
+          .toLowerCase();
+      if (existingDomain != null && existingDomain.isNotEmpty) {
+        tx.set(_db.collection('domain_mappings').doc(existingDomain), {
+          'userId': uid,
+          'username': username,
+          'active': true,
+          'updatedAt': FieldValue.serverTimestamp(),
+          'createdAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+      }
+    });
+  }
+
+  Future<void> setCustomDomain(String input) async {
+    final uid = _currentUid;
+    if (uid == null) throw Exception("Please sign in again.");
+
+    final domain = _normalizeDomain(input);
+    if (!_isValidDomain(domain)) {
+      throw Exception("Enter a valid domain like yourname.com");
+    }
+
+    final userRef = _db.collection('users').doc(uid);
+    final newDomainRef = _db.collection('domain_mappings').doc(domain);
+
+    await _db.runTransaction((tx) async {
+      final userSnap = await tx.get(userRef);
+      final oldDomain = (userSnap.data()?['customDomain'] as String?)
+          ?.trim()
+          .toLowerCase();
+      final username =
+          (userSnap.data()?['username'] as String?)?.trim().toLowerCase();
+
+      final domainSnap = await tx.get(newDomainRef);
+      if (domainSnap.exists) {
+        final ownerId = domainSnap.data()?['userId'];
+        if (ownerId != uid) {
+          throw Exception("Domain is already connected to another account.");
+        }
+      }
+
+      tx.set(newDomainRef, {
+        'userId': uid,
+        'username': username ?? '',
+        'active': true,
+        'updatedAt': FieldValue.serverTimestamp(),
+        'createdAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+
+      if (oldDomain != null && oldDomain.isNotEmpty && oldDomain != domain) {
+        final oldDomainRef = _db.collection('domain_mappings').doc(oldDomain);
+        final oldDomainSnap = await tx.get(oldDomainRef);
+        if (oldDomainSnap.exists && oldDomainSnap.data()?['userId'] == uid) {
+          tx.delete(oldDomainRef);
+        }
+      }
+
+      tx.set(userRef, {
+        'customDomain': domain,
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+    });
+  }
+
+  Future<void> removeCustomDomain() async {
+    final uid = _currentUid;
+    if (uid == null) throw Exception("Please sign in again.");
+
+    final userRef = _db.collection('users').doc(uid);
+    await _db.runTransaction((tx) async {
+      final userSnap = await tx.get(userRef);
+      final oldDomain = (userSnap.data()?['customDomain'] as String?)
+          ?.trim()
+          .toLowerCase();
+      if (oldDomain != null && oldDomain.isNotEmpty) {
+        final mappingRef = _db.collection('domain_mappings').doc(oldDomain);
+        final mappingSnap = await tx.get(mappingRef);
+        if (mappingSnap.exists && mappingSnap.data()?['userId'] == uid) {
+          tx.delete(mappingRef);
+        }
+      }
+
+      tx.set(userRef, {
+        'customDomain': FieldValue.delete(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+    });
   }
 }
