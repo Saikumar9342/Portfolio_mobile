@@ -406,4 +406,47 @@ class FirestoreService {
           SetOptions(merge: true));
     });
   }
+
+  Stream<QuerySnapshot<Map<String, dynamic>>> streamMessages() {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return const Stream.empty();
+
+    var query = _db.collection('messages');
+
+    if (user.email == _adminEmail) {
+      // NOTE: Firestore 'whereIn' does not support null values.
+      // To properly support legacy messages (null), we would need:
+      // 1. Two separate queries (one for null, one for uid) and merge them.
+      // 2. OR migrate legacy data to have the admin UID.
+      // For stability now, we only query the explicit UID.
+      return query
+          .where('targetUserId', isEqualTo: user.uid)
+          .orderBy('timestamp', descending: true)
+          .snapshots();
+    }
+    return query
+        .where('targetUserId', isEqualTo: user.uid)
+        .orderBy('timestamp', descending: true)
+        .snapshots();
+  }
+
+  Stream<int> streamUnreadMessagesCount() {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return Stream.value(0);
+
+    Query query =
+        _db.collection('messages').where('status', isEqualTo: 'unread');
+
+    if (user.email == _adminEmail) {
+      // NOTE: Firestore 'whereIn' does not support null values.
+      // We must query for the user's ID specifically, or handle null via a separate query if needed.
+      // For now, to avoid the crash, we only check for the user ID.
+      // If legacy messages (null) are crucial, they would need a separate query and client-side merge.
+      query = query.where('targetUserId', isEqualTo: user.uid);
+    } else {
+      query = query.where('targetUserId', isEqualTo: user.uid);
+    }
+
+    return query.snapshots().map((snap) => snap.docs.length);
+  }
 }

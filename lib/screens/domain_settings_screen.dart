@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -87,7 +88,9 @@ class _DomainSettingsScreenState extends State<DomainSettingsScreen> {
           }
 
           final data = snapshot.data!.data() ?? <String, dynamic>{};
-          final uid = (data['uid'] as String?) ?? '';
+          final uid = (data['uid'] as String?) ??
+              FirebaseAuth.instance.currentUser?.uid ??
+              '';
           final username = (data['username'] as String?) ?? '';
           final customDomain = (data['customDomain'] as String?) ?? '';
           final baseUrl = (data['publicBaseUrl'] as String?) ??

@@ -272,135 +272,176 @@ class _SkillDetailScreenState extends State<SkillDetailScreen> {
       }
     }
 
-    await showDialog(
+    await showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
+      backgroundColor: AppTheme.surfaceColor,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
       builder: (ctx) => StatefulBuilder(
-          // Use StatefulBuilder to toggle modes if we want, but keeping simple for now
-          builder: (context, setDialogState) {
-        return AlertDialog(
-          backgroundColor: AppTheme.surfaceColor,
-          title: Text(index == null ? "Add Skill" : "Edit Skill",
-              style: GoogleFonts.outfit(color: Colors.white)),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (_items.isEmpty) ...[
-                // Toggle between Tag vs Rich
+        builder: (context, setDialogState) {
+          // Wrap in Padding for keyboard avoidance
+          return Padding(
+            padding: EdgeInsets.only(
+              bottom: MediaQuery.of(ctx).viewInsets.bottom,
+              left: 20,
+              right: 20,
+              top: 24,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.max,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
                 Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text("Include Proficiency %?",
-                        style: TextStyle(color: Colors.white70)),
-                    Switch(
-                      value: useRichEditor,
-                      onChanged: (val) {
-                        setDialogState(() => useRichEditor = val);
-                      },
-                      activeTrackColor:
-                          AppTheme.primaryColor.withValues(alpha: 0.5),
-                      activeThumbColor: AppTheme.primaryColor,
-                    )
+                    Text(
+                      index == null ? "Add Skill" : "Edit Skill",
+                      style: GoogleFonts.outfit(
+                        color: Colors.white,
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    IconButton(
+                        onPressed: () => Navigator.pop(ctx),
+                        icon: const Icon(Icons.close, color: Colors.white54))
                   ],
                 ),
                 const SizedBox(height: 16),
-              ],
-              CustomTextField(
-                  label: "SKILL NAME",
-                  controller: nameCtrl,
-                  hint: "e.g. React"),
-              if (useRichEditor) ...[
-                const SizedBox(height: 16),
-                Text("ICON",
-                    style: GoogleFonts.inter(
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                        color: AppTheme.textSecondary)),
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    'Code2',
-                    'Layout',
-                    'Maximize2',
-                    'Globe',
-                    'Database',
-                    'Cpu',
-                    'Layers',
-                    'Smartphone',
-                    'Terminal',
-                    'Shield',
-                    'Workflow',
-                    'Palette'
-                  ].map((iconName) {
-                    final isSelected = selectedIcon == iconName;
-                    return GestureDetector(
-                      onTap: () =>
-                          setDialogState(() => selectedIcon = iconName),
-                      child: Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: isSelected
-                              ? AppTheme.primaryColor
-                              : AppTheme.inputFillColor,
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(
-                              color: isSelected
-                                  ? AppTheme.primaryColor
-                                  : Colors.white10),
+                Expanded(
+                  child: SingleChildScrollView(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (_items.isEmpty) ...[
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              const Text("Include Proficiency %?",
+                                  style: TextStyle(color: Colors.white70)),
+                              Switch(
+                                value: useRichEditor,
+                                onChanged: (val) {
+                                  setDialogState(() => useRichEditor = val);
+                                },
+                                activeTrackColor: AppTheme.primaryColor
+                                    .withValues(alpha: 0.5),
+                                activeThumbColor: AppTheme.primaryColor,
+                              )
+                            ],
+                          ),
+                          const SizedBox(height: 16),
+                        ],
+                        CustomTextField(
+                            label: "SKILL NAME",
+                            controller: nameCtrl,
+                            hint: "e.g. React"),
+                        if (useRichEditor) ...[
+                          const SizedBox(height: 24),
+                          Text("ICON",
+                              style: GoogleFonts.inter(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                  color: AppTheme.textSecondary)),
+                          const SizedBox(height: 8),
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            children: [
+                              'Code2',
+                              'Layout',
+                              'Maximize2',
+                              'Globe',
+                              'Database',
+                              'Cpu',
+                              'Layers',
+                              'Smartphone',
+                              'Terminal',
+                              'Shield',
+                              'Workflow',
+                              'Palette'
+                            ].map((iconName) {
+                              final isSelected = selectedIcon == iconName;
+                              return GestureDetector(
+                                onTap: () => setDialogState(
+                                    () => selectedIcon = iconName),
+                                child: Container(
+                                  padding: const EdgeInsets.all(8),
+                                  decoration: BoxDecoration(
+                                    color: isSelected
+                                        ? AppTheme.primaryColor
+                                        : AppTheme.inputFillColor,
+                                    borderRadius: BorderRadius.circular(8),
+                                    border: Border.all(
+                                        color: isSelected
+                                            ? AppTheme.primaryColor
+                                            : Colors.white10),
+                                  ),
+                                  child: Icon(_getIconData(iconName),
+                                      color: isSelected
+                                          ? Colors.white
+                                          : Colors.white70,
+                                      size: 20),
+                                ),
+                              );
+                            }).toList(),
+                          ),
+                          const SizedBox(height: 24),
+                          CustomTextField(
+                              label: "PROFICIENCY (%)",
+                              controller: levelCtrl,
+                              hint: "e.g. 90",
+                              keyboardType: TextInputType.number),
+                        ],
+                        const SizedBox(height: 24),
+                        PrimaryButton(
+                          text: "Save Skill",
+                          onPressed: () {
+                            if (nameCtrl.text.isEmpty) {
+                              return;
+                            }
+
+                            dynamic newItem;
+                            if (useRichEditor) {
+                              newItem = {
+                                'name': nameCtrl.text,
+                                'level': int.tryParse(levelCtrl.text) ?? 80,
+                                'icon': selectedIcon,
+                                'id': index != null &&
+                                        _items[index] is Map &&
+                                        _items[index]['id'] != null
+                                    ? _items[index]['id']
+                                    : DateTime.now()
+                                        .millisecondsSinceEpoch
+                                        .toString(), // Ensure unique ID
+                              };
+                            } else {
+                              newItem = nameCtrl.text;
+                            }
+
+                            final newItems = List.from(_items);
+                            if (index == null) {
+                              newItems.add(newItem);
+                            } else {
+                              newItems[index] = newItem;
+                            }
+
+                            _saveChanges(newItems);
+                            Navigator.pop(ctx);
+                          },
                         ),
-                        child: Icon(_getIconData(iconName),
-                            color: isSelected ? Colors.white : Colors.white70,
-                            size: 20),
-                      ),
-                    );
-                  }).toList(),
+                        const SizedBox(height: 24),
+                      ],
+                    ),
+                  ),
                 ),
-                const SizedBox(height: 16),
-                CustomTextField(
-                    label: "PROFICIENCY (%)",
-                    controller: levelCtrl,
-                    hint: "e.g. 90",
-                    keyboardType: TextInputType.number),
-              ]
-            ],
-          ),
-          actions: [
-            TextButton(
-                onPressed: () => Navigator.pop(ctx),
-                child: const Text("Cancel")),
-            TextButton(
-              onPressed: () {
-                if (nameCtrl.text.isEmpty) {
-                  return;
-                }
-
-                dynamic newItem;
-                if (useRichEditor) {
-                  newItem = {
-                    'name': nameCtrl.text,
-                    'level': int.tryParse(levelCtrl.text) ?? 80,
-                    'icon': selectedIcon,
-                  };
-                } else {
-                  newItem = nameCtrl.text;
-                }
-
-                final newItems = List.from(_items);
-                if (index == null) {
-                  newItems.add(newItem);
-                } else {
-                  newItems[index] = newItem;
-                }
-
-                _saveChanges(newItems);
-                Navigator.pop(ctx);
-              },
-              child: const Text("Save",
-                  style: TextStyle(color: AppTheme.primaryColor)),
-            )
-          ],
-        );
-      }),
+              ],
+            ),
+          );
+        },
+      ),
     );
   }
 

@@ -6,6 +6,7 @@ import '../theme/app_theme.dart';
 import '../services/seed_data.dart';
 import '../widgets/action_dialog.dart';
 import 'domain_settings_screen.dart';
+import '../services/firestore_service.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -50,6 +51,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
       final user = FirebaseAuth.instance.currentUser;
       if (user != null) {
         await user.updateDisplayName(_nameController.text);
+
+        // Also sync to Firestore
+        await FirestoreService().ensureUserProfile();
+
         if (mounted) {
           setState(() => _isNameEditing = false);
           ScaffoldMessenger.of(context).showSnackBar(

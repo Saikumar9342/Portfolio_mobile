@@ -224,7 +224,7 @@ class _ContentEditorScreenState extends State<ContentEditorScreen> {
           'education': [
             {"degree": "Degree", "institution": "University", "year": "2024"}
           ],
-          'interests': [],
+          'interests': ['Photography', 'Music', 'Travel'],
           'socialLinks': [
             {'platform': 'github', 'url': ''}
           ]
@@ -764,110 +764,140 @@ class _ContentEditorScreenState extends State<ContentEditorScreen> {
       controllers[key] = TextEditingController(text: value.toString());
     });
 
-    // 3. Show dialog
-    showDialog(
+    // 3. Show Bottom Sheet (Better for keyboard handling)
+    showModalBottomSheet(
       context: context,
-      barrierDismissible: false, // Prevent accidental dismissal
+      isScrollControlled: true,
+      backgroundColor: AppTheme.surfaceColor,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
       builder: (ctx) {
-        return AlertDialog(
-          backgroundColor: AppTheme.surfaceColor,
-          title: Text(
-            isNew ? "Add Item" : "Edit Item",
-            style: GoogleFonts.outfit(
-              color: Colors.white,
-              fontWeight: FontWeight.bold,
-            ),
+        return Padding(
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.of(ctx).viewInsets.bottom,
+            left: 20,
+            right: 20,
+            top: 24,
           ),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: controllers.entries.map((entry) {
-                final key = entry.key;
-                final controller = entry.value;
-
-                if (key.toLowerCase() == 'icon') {
-                  return Padding(
-                    padding: const EdgeInsets.only(bottom: 16),
-                    child: _buildIconPickerForDialog(controller),
-                  );
-                }
-
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 16),
-                  child: CustomTextField(
-                    label: key.toUpperCase(),
-                    controller: controller,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    isNew ? "Add Item" : "Edit Item",
+                    style: GoogleFonts.outfit(
+                      color: Colors.white,
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
-                );
-              }).toList(),
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.of(ctx).pop(); // Close dialog
-              },
-              child: const Text(
-                "Cancel",
-                style: TextStyle(color: AppTheme.textSecondary),
+                  IconButton(
+                    icon: const Icon(Icons.close, color: Colors.white54),
+                    onPressed: () => Navigator.pop(ctx),
+                  ),
+                ],
               ),
-            ),
-            TextButton(
-              onPressed: () {
-                try {
-                  // 4. Collect values from controllers
-                  final Map<String, dynamic> newItem = {};
+              const SizedBox(height: 16),
+              Expanded(
+                child: SingleChildScrollView(
+                  child: Column(
+                    children: controllers.entries.map((entry) {
+                      final key = entry.key;
+                      final controller = entry.value;
 
-                  controllers.forEach((key, controller) {
-                    final text = controller.text;
-                    final normalizedKey = key.trim().toLowerCase();
-                    final shouldParseNumber =
-                        _numericObjectKeys.contains(normalizedKey) &&
-                            !text.contains(',');
-                    if (shouldParseNumber) {
-                      final parsedNum = num.tryParse(text);
-                      newItem[key] = parsedNum ?? text;
+                      if (key.toLowerCase() == 'icon') {
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 16),
+                          child: _buildIconPickerForDialog(controller),
+                        );
+                      }
+
+                      final isDateKey = key.toLowerCase() == 'year' ||
+                          key.toLowerCase() == 'period' ||
+                          (key.toLowerCase() == 'value' &&
+                              controllers['label']
+                                      ?.text
+                                      .toLowerCase()
+                                      .contains('experience') ==
+                                  true);
+
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 16),
+                        child: CustomTextField(
+                          label: key.toUpperCase(),
+                          controller: controller,
+                          hint: _getPlaceholderForKey(key),
+                          suffixIcon: isDateKey ? Icons.calendar_month : null,
+                          onSuffixTap: isDateKey
+                              ? () =>
+                                  _pickDateRangeForField(ctx, key, controller)
+                              : null,
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              PrimaryButton(
+                text: "Save Item",
+                onPressed: () {
+                  try {
+                    // 4. Collect values from controllers
+                    final Map<String, dynamic> newItem = {};
+
+                    controllers.forEach((key, controller) {
+                      final text = controller.text;
+                      final normalizedKey = key.trim().toLowerCase();
+                      final shouldParseNumber =
+                          _numericObjectKeys.contains(normalizedKey) &&
+                              !text.contains(',');
+                      if (shouldParseNumber) {
+                        final parsedNum = num.tryParse(text);
+                        newItem[key] = parsedNum ?? text;
+                      } else {
+                        newItem[key] = text;
+                      }
+                    });
+
+                    final updatedItems = List<Map<String, dynamic>>.from(items);
+
+                    if (isNew) {
+                      updatedItems.add(newItem);
                     } else {
-                      newItem[key] = text;
+                      updatedItems[index] = newItem;
                     }
-                  });
 
-                  final updatedItems = List<Map<String, dynamic>>.from(items);
+                    if (!mounted) {
+                      Navigator.of(ctx).pop();
+                      return;
+                    }
 
-                  if (isNew) {
-                    updatedItems.add(newItem);
-                  } else {
-                    updatedItems[index] = newItem;
+                    setState(() {
+                      field.objectItems = updatedItems;
+                      _isDirty = true;
+                    });
+
+                    Navigator.of(ctx).pop(); // Close sheet
+                  } catch (e) {
+                    if (!mounted) return;
+                    ActionDialog.show(
+                      context,
+                      title: "Save Failed",
+                      message: "Could not save item: $e",
+                      type: ActionDialogType.danger,
+                      onConfirm: () {},
+                    );
                   }
-
-                  if (!mounted) {
-                    Navigator.of(ctx).pop();
-                    return;
-                  }
-
-                  setState(() {
-                    field.objectItems = updatedItems;
-                    _isDirty = true;
-                  });
-
-                  Navigator.of(ctx).pop(); // Close dialog
-                } catch (e) {
-                  if (!mounted) return;
-                  ActionDialog.show(
-                    context,
-                    title: "Save Failed",
-                    message: "Could not save item: $e",
-                    type: ActionDialogType.danger,
-                    onConfirm: () {},
-                  );
-                }
-              },
-              child: const Text(
-                "Save",
-                style: TextStyle(color: AppTheme.primaryColor),
+                },
               ),
-            ),
-          ],
+              const SizedBox(height: 24),
+            ],
+          ),
         );
       },
     ).then((_) {
@@ -892,10 +922,242 @@ class _ContentEditorScreenState extends State<ContentEditorScreen> {
       return {"name": "", "level": "90", "icon": "Code2"};
     }
 
+    if (key == 'experience') {
+      return {
+        "role": "",
+        "company": "",
+        "period": "",
+        "description": "",
+        "isCurrent": false
+      };
+    }
     if (key == 'items') return {"label": "", "href": ""};
     if (key == 'socialLinks') return {"platform": "", "url": ""};
 
     return {"title": "", "description": ""}; // Generic fallback
+  }
+
+  String _getPlaceholderForKey(String key) {
+    switch (key.toLowerCase()) {
+      case 'title':
+        return 'e.g. Project Title / Job Title';
+      case 'description':
+        return 'e.g. A breif description...';
+      case 'degree':
+        return 'e.g. Bachelor of Science';
+      case 'institution':
+        return 'e.g. mit';
+      case 'year':
+        return 'e.g. 2020 - 2024';
+      case 'period':
+        return 'e.g. Jan 2020 - Present';
+      case 'company':
+        return 'e.g. Google';
+      case 'role':
+        return 'e.g. Senior Software Engineer';
+      case 'label':
+        return 'e.g. Projects Completed';
+      case 'value':
+        return 'e.g. 15+';
+      case 'platform':
+        return 'e.g. github / linkedin';
+      case 'url':
+        return 'e.g. https://github.com/username';
+      case 'href':
+        return 'e.g. https://example.com';
+      case 'name':
+        return 'e.g. React Native';
+      case 'level':
+        return 'e.g. 90';
+      case 'id':
+        return 'e.g. unique-id';
+      default:
+        return 'Enter $key...';
+    }
+  }
+
+  Future<void> _pickDateRangeForField(BuildContext context, String key,
+      TextEditingController controller) async {
+    final lowerKey = key.toLowerCase();
+    final isEducationYear = lowerKey == 'year';
+    final isExperiencePeriod = lowerKey == 'period';
+    // Check if this is the "Stats" value field for Experience
+    // We can infer this if the key is 'value' (since we only enable the button in that case)
+    final isStatsExperience = lowerKey == 'value';
+
+    if (!isEducationYear && !isExperiencePeriod && !isStatsExperience) return;
+
+    final now = DateTime.now();
+    final firstDate = DateTime(1960); // Reasonable start
+    final lastDate = now;
+
+    // Custom Theme Builder for DatePicker
+    Widget datePickerTheme(BuildContext context, Widget? child) {
+      return Theme(
+        data: Theme.of(context).copyWith(
+          colorScheme: const ColorScheme.dark(
+            primary: AppTheme.primaryColor, // Header background & selected day
+            onPrimary: Colors.black, // Text on selected day
+            surface: AppTheme.surfaceColor, // Dialog background
+            onSurface: Colors.white, // Normal text
+          ),
+          textButtonTheme: TextButtonThemeData(
+            style: TextButton.styleFrom(
+              foregroundColor: AppTheme.primaryColor, // Button text color
+            ),
+          ),
+          dialogTheme:
+              const DialogThemeData(backgroundColor: AppTheme.surfaceColor),
+        ),
+        child: child!,
+      );
+    }
+
+    // 1. Pick Start Date
+    final start = await showDatePicker(
+      context: context,
+      initialDate: now,
+      firstDate: firstDate,
+      lastDate: lastDate,
+      helpText: "SELECT START DATE",
+      builder: datePickerTheme,
+    );
+    if (start == null) return;
+
+    // Special Case: Stats Experience (Years.Months)
+    if (isStatsExperience) {
+      int totalMonths =
+          (now.year - start.year - 1) * 12 + now.month - start.month;
+      if (now.day < start.day) {
+        totalMonths--;
+      }
+      if (totalMonths < 0) totalMonths = 0;
+
+      final years = totalMonths ~/ 12;
+      final months = totalMonths % 12;
+
+      if (months > 0) {
+        controller.text = "$years.$months+";
+      } else {
+        controller.text = "$years+";
+      }
+      return;
+    }
+
+    DateTime? end;
+    bool isPresent = false;
+
+    // 2. Pick End Date or "Present"
+    if (isExperiencePeriod) {
+      if (!mounted) return;
+      // Ask if currently working
+      final isCurrent = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: AppTheme.surfaceColor,
+          title: Text("Currently working here?",
+              style: GoogleFonts.outfit(color: Colors.white)),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text("No, I left",
+                  style: TextStyle(color: Colors.white70)),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text("Yes, Current",
+                  style: TextStyle(color: AppTheme.primaryColor)),
+            ),
+          ],
+        ),
+      );
+
+      if (isCurrent == true) {
+        isPresent = true;
+        end = DateTime.now();
+      } else {
+        if (!mounted) return;
+        end = await showDatePicker(
+          context: context,
+          initialDate: start,
+          firstDate: start,
+          lastDate: lastDate,
+          helpText: "SELECT END DATE",
+          builder: datePickerTheme,
+        );
+        if (end == null) return; // User cancelled end date
+      }
+    } else {
+      if (!mounted) return;
+      // Education: Just pick end date usually
+      end = await showDatePicker(
+        context: context,
+        initialDate: start,
+        firstDate: start,
+        lastDate: lastDate,
+        helpText: "SELECT END DATE",
+        builder: datePickerTheme,
+      );
+      if (end == null) return;
+    }
+
+    // 3. Format String
+    String result = "";
+    if (isEducationYear) {
+      // Education: "2018 - 2022"
+      result = "${start.year} - ${end.year}";
+    } else {
+      // Experience: "Jan 2021 - Present · 2 yrs 3 mos"
+      final endYear =
+          isPresent ? "Present" : "${_monthName(end.month)} ${end.year}";
+      final startStr = "${_monthName(start.month)} ${start.year}";
+
+      // Calculate duration
+      final endDate = isPresent ? DateTime.now() : end;
+
+      // Improve calculation: using month difference
+      int totalMonths =
+          (endDate.year - start.year) * 12 + endDate.month - start.month;
+      if (endDate.day >= start.day) {
+        // Full month passed
+      } else {
+        // Not quite a full month
+        totalMonths--;
+      }
+
+      // Ensure specific "joined today" doesn't show negative
+      if (totalMonths < 0) totalMonths = 0;
+
+      final yearsVal = totalMonths ~/ 12;
+      final monthsVal = totalMonths % 12;
+
+      String durationStr = "";
+      if (yearsVal > 0) durationStr += "$yearsVal yrs ";
+      if (monthsVal > 0) durationStr += "$monthsVal mos";
+      if (durationStr.isEmpty) durationStr = "1 mo";
+
+      result = "$startStr - $endYear · ${durationStr.trim()}";
+    }
+
+    controller.text = result;
+  }
+
+  String _monthName(int month) {
+    const months = [
+      "Jan",
+      "Feb",
+      "Mar",
+      "Apr",
+      "May",
+      "Jun",
+      "Jul",
+      "Aug",
+      "Sep",
+      "Oct",
+      "Nov",
+      "Dec"
+    ];
+    return months[month - 1];
   }
 
   Widget _buildIconPickerForDialog(TextEditingController controller) {
@@ -933,10 +1195,14 @@ class _ContentEditorScreenState extends State<ContentEditorScreen> {
               final isSelected = selectedIcon == iconName;
               return GestureDetector(
                 onTap: () {
+                  // Update state using the StateSetter from StatefulBuilder
                   setDialogState(() {
                     controller.text = iconName;
                   });
-                  _markDirty();
+                  // Also trigger main widget rebuild to show dirty state
+                  setState(() {
+                    _isDirty = true;
+                  });
                 },
                 child: Container(
                   padding: const EdgeInsets.all(8),

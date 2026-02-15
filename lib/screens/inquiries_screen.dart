@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import '../models/inquiry.dart';
 import '../theme/app_theme.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../services/firestore_service.dart';
 
 class InquiriesScreen extends StatefulWidget {
   const InquiriesScreen({super.key});
@@ -14,6 +15,8 @@ class InquiriesScreen extends StatefulWidget {
 }
 
 class _InquiriesScreenState extends State<InquiriesScreen> {
+  final FirestoreService _service = FirestoreService();
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -25,10 +28,7 @@ class _InquiriesScreenState extends State<InquiriesScreen> {
         scrolledUnderElevation: 0,
       ),
       body: StreamBuilder<QuerySnapshot>(
-        stream: FirebaseFirestore.instance
-            .collection('messages')
-            .orderBy('timestamp', descending: true)
-            .snapshots(),
+        stream: _service.streamMessages(),
         builder: (context, snapshot) {
           if (snapshot.hasError) {
             return Center(child: Text('Error: ${snapshot.error}'));

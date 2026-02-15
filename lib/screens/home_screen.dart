@@ -204,14 +204,10 @@ class _HomeScreenState extends State<HomeScreen> {
                                       builder: (_) => const InquiriesScreen())),
                             ),
                           ),
-                          StreamBuilder<QuerySnapshot>(
-                              stream: FirebaseFirestore.instance
-                                  .collection('messages')
-                                  .where('status', isEqualTo: 'unread')
-                                  .snapshots(),
+                          StreamBuilder<int>(
+                              stream: _service.streamUnreadMessagesCount(),
                               builder: (context, snapshot) {
-                                if (!snapshot.hasData ||
-                                    snapshot.data!.docs.isEmpty) {
+                                if (!snapshot.hasData || snapshot.data == 0) {
                                   return const SizedBox.shrink();
                                 }
                                 return Positioned(
@@ -228,7 +224,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                       minHeight: 16,
                                     ),
                                     child: Text(
-                                      '${snapshot.data!.docs.length}',
+                                      '${snapshot.data}',
                                       style: const TextStyle(
                                         color: Colors.white,
                                         fontSize: 8,
@@ -494,11 +490,7 @@ class _HomeScreenState extends State<HomeScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
-              _buildStatItem(
-                  "Leads",
-                  FirebaseFirestore.instance
-                      .collection('messages')
-                      .snapshots()),
+              _buildStatItem("Leads", _service.streamMessages()),
               _buildStatItem("Projects", _service.streamProjects()),
               _buildStatItem(
                   "Skills",
