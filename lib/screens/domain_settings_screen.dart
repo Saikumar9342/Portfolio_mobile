@@ -145,6 +145,18 @@ class _DomainSettingsScreenState extends State<DomainSettingsScreen> {
                     : () async {
                         final value = _baseUrlController.text.trim();
                         if (value.isEmpty) return;
+
+                        final confirm = await ActionDialog.show(
+                          context,
+                          title: "Update Base URL",
+                          message:
+                              "Changing the Base URL will affect all your public portfolio links. Continue?",
+                          confirmLabel: "UPDATE",
+                          type: ActionDialogType.warning,
+                          onConfirm: () {},
+                        );
+                        if (confirm != true) return;
+
                         setState(() => _isSavingBaseUrl = true);
                         try {
                           await _service.setPublicBaseUrl(value);
@@ -190,6 +202,18 @@ class _DomainSettingsScreenState extends State<DomainSettingsScreen> {
                     : () async {
                         final value = _usernameController.text.trim();
                         if (value.isEmpty) return;
+
+                        final confirm = await ActionDialog.show(
+                          context,
+                          title: "Update Username",
+                          message:
+                              "Changing your username will update your public portfolio link. Continue?",
+                          confirmLabel: "UPDATE",
+                          type: ActionDialogType.warning,
+                          onConfirm: () {},
+                        );
+                        if (confirm != true) return;
+
                         setState(() => _isSavingUsername = true);
                         try {
                           await _service.setUsername(value);
@@ -235,6 +259,18 @@ class _DomainSettingsScreenState extends State<DomainSettingsScreen> {
                     : () async {
                         final value = _domainController.text.trim();
                         if (value.isEmpty) return;
+
+                        final confirm = await ActionDialog.show(
+                          context,
+                          title: "Connect Custom Domain",
+                          message:
+                              "Are you sure you want to connect '$value' to your portfolio?",
+                          confirmLabel: "CONNECT",
+                          type: ActionDialogType.warning,
+                          onConfirm: () {},
+                        );
+                        if (confirm != true) return;
+
                         setState(() => _isSavingDomain = true);
                         try {
                           await _service.setCustomDomain(value);
