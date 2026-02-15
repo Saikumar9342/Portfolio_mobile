@@ -39,6 +39,7 @@ class _ContentEditorScreenState extends State<ContentEditorScreen> {
   final Map<String, FieldData> _fields = {};
   bool _isLoading = true;
   bool _isSaving = false;
+  bool _isUploadingImage = false;
   bool _isDirty = false;
   bool _isProgrammaticFieldUpdate = false;
   final CloudinaryService _cloudinaryService = CloudinaryService();
@@ -382,21 +383,26 @@ class _ContentEditorScreenState extends State<ContentEditorScreen> {
   }
 
   Future<void> _pickImage(FieldData field) async {
-    final url = await _cloudinaryService.pickAndUploadImage();
-    if (url != null) {
-      setState(() {
-        _setFieldText(field, url);
-      });
-    } else {
-      if (mounted) {
-        ActionDialog.show(
-          context,
-          title: "Upload Failed",
-          message: "The image could not be uploaded to Cloudinary.",
-          type: ActionDialogType.danger,
-          onConfirm: () {},
-        );
+    setState(() => _isUploadingImage = true);
+    try {
+      final url = await _cloudinaryService.pickAndUploadImage();
+      if (url != null) {
+        setState(() {
+          _setFieldText(field, url);
+        });
+      } else {
+        if (mounted) {
+          ActionDialog.show(
+            context,
+            title: "Upload Failed",
+            message: "The image could not be uploaded to Cloudinary.",
+            type: ActionDialogType.danger,
+            onConfirm: () {},
+          );
+        }
       }
+    } finally {
+      if (mounted) setState(() => _isUploadingImage = false);
     }
   }
 
@@ -610,7 +616,7 @@ class _ContentEditorScreenState extends State<ContentEditorScreen> {
               color: AppTheme.surfaceColor,
               borderRadius: BorderRadius.circular(16),
               border: Border.all(color: Colors.white10),
-              image: field.controller.text.isNotEmpty
+              image: !_isUploadingImage && field.controller.text.isNotEmpty
                   ? DecorationImage(
                       image: NetworkImage(field.controller.text),
                       fit: BoxFit.cover,
@@ -619,15 +625,29 @@ class _ContentEditorScreenState extends State<ContentEditorScreen> {
                     )
                   : null,
             ),
-            child: field.controller.text.isEmpty
+            child: _isUploadingImage
                 ? const Center(
-                    child: Icon(Icons.image, size: 48, color: Colors.white24))
-                : null,
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        CircularProgressIndicator(color: AppTheme.primaryColor),
+                        SizedBox(height: 12),
+                        Text("Uploading...",
+                            style: TextStyle(color: AppTheme.textSecondary)),
+                      ],
+                    ),
+                  )
+                : field.controller.text.isEmpty
+                    ? const Center(
+                        child:
+                            Icon(Icons.image, size: 48, color: Colors.white24))
+                    : null,
           ),
           const SizedBox(height: 12),
           PrimaryButton(
-            text: "Upload New Image",
+            text: _isUploadingImage ? "Wait for Upload..." : "Upload New Image",
             onPressed: () => _pickImage(field),
+            isLoading: _isUploadingImage,
             icon: Icons.cloud_upload_outlined,
           ),
         ],

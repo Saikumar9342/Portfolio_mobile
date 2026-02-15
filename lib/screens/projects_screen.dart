@@ -520,6 +520,7 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
   final _githubLinkController = TextEditingController();
   final CloudinaryService _cloudinaryService = CloudinaryService();
   bool _isSaving = false;
+  bool _isUploadingImage = false;
   bool _isDirty = false;
 
   @override
@@ -637,11 +638,16 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
   }
 
   Future<void> _pickImage() async {
-    final url = await _cloudinaryService.pickAndUploadImage();
-    if (url != null) {
-      setState(() {
-        _imageUrlController.text = url;
-      });
+    setState(() => _isUploadingImage = true);
+    try {
+      final url = await _cloudinaryService.pickAndUploadImage();
+      if (url != null) {
+        setState(() {
+          _imageUrlController.text = url;
+        });
+      }
+    } finally {
+      if (mounted) setState(() => _isUploadingImage = false);
     }
   }
 
@@ -738,24 +744,39 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
                         color: AppTheme.inputFillColor,
                         borderRadius: BorderRadius.circular(16),
                         border: Border.all(color: Colors.white10),
-                        image: _imageUrlController.text.isNotEmpty
+                        image: !_isUploadingImage &&
+                                _imageUrlController.text.isNotEmpty
                             ? DecorationImage(
                                 image: NetworkImage(_imageUrlController.text),
                                 fit: BoxFit.cover)
                             : null),
-                    child: _imageUrlController.text.isEmpty
+                    child: _isUploadingImage
                         ? const Center(
                             child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                Icon(Icons.add_photo_alternate_outlined,
-                                    size: 32, color: AppTheme.primaryColor),
-                                SizedBox(height: 8),
-                                Text("Tap to upload image",
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                CircularProgressIndicator(
+                                    color: AppTheme.primaryColor),
+                                SizedBox(height: 12),
+                                Text("Uploading...",
                                     style: TextStyle(
-                                        color: AppTheme.textSecondary))
-                              ]))
-                        : null,
+                                        color: AppTheme.textSecondary)),
+                              ],
+                            ),
+                          )
+                        : _imageUrlController.text.isEmpty
+                            ? const Center(
+                                child: Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                    Icon(Icons.add_photo_alternate_outlined,
+                                        size: 32, color: AppTheme.primaryColor),
+                                    SizedBox(height: 8),
+                                    Text("Tap to upload image",
+                                        style: TextStyle(
+                                            color: AppTheme.textSecondary))
+                                  ]))
+                            : null,
                   ),
                 ),
               ),
