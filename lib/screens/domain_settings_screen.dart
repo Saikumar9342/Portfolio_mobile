@@ -52,8 +52,13 @@ class _DomainSettingsScreenState extends State<DomainSettingsScreen> {
     required String baseUrl,
     required String uid,
     String? username,
+    String? customDomain,
   }) {
-    final base = baseUrl.trim().replaceAll(RegExp(r'/$'), '');
+    if (customDomain != null && customDomain.trim().isNotEmpty) {
+      return 'https://${customDomain.trim().toLowerCase()}';
+    }
+
+    final base = baseUrl.trim().replaceAll(RegExp(r'/+$'), '');
     if (username != null && username.trim().isNotEmpty) {
       return '$base/u/${username.trim().toLowerCase()}';
     }
@@ -102,8 +107,10 @@ class _DomainSettingsScreenState extends State<DomainSettingsScreen> {
             baseUrl: baseUrl,
             uid: uid,
             username: username,
+            customDomain: customDomain,
           );
-          final customLink = customDomain.isNotEmpty ? 'https://$customDomain' : '';
+          final customLink =
+              customDomain.isNotEmpty ? 'https://$customDomain' : '';
 
           return ListView(
             padding: const EdgeInsets.all(20),
@@ -217,9 +224,7 @@ class _DomainSettingsScreenState extends State<DomainSettingsScreen> {
               ),
               const SizedBox(height: 12),
               PrimaryButton(
-                text: customDomain.isEmpty
-                    ? "CONNECT DOMAIN"
-                    : "UPDATE DOMAIN",
+                text: customDomain.isEmpty ? "CONNECT DOMAIN" : "UPDATE DOMAIN",
                 icon: Icons.link_rounded,
                 onPressed: _isSavingDomain
                     ? () {}

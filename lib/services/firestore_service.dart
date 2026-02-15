@@ -216,7 +216,8 @@ class FirestoreService {
   }
 
   bool _isValidDomain(String domain) {
-    final valid = RegExp(r'^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,}$');
+    final valid =
+        RegExp(r'^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,}$');
     return valid.hasMatch(domain);
   }
 
@@ -264,9 +265,8 @@ class FirestoreService {
 
     await _db.runTransaction((tx) async {
       final userSnap = await tx.get(userRef);
-      final oldUsername = (userSnap.data()?['username'] as String?)
-          ?.trim()
-          .toLowerCase();
+      final oldUsername =
+          (userSnap.data()?['username'] as String?)?.trim().toLowerCase();
 
       final usernameSnap = await tx.get(newUsernameRef);
       if (usernameSnap.exists) {
@@ -276,13 +276,16 @@ class FirestoreService {
         }
       }
 
-      tx.set(newUsernameRef, {
-        'userId': uid,
-        'username': username,
-        'active': true,
-        'updatedAt': FieldValue.serverTimestamp(),
-        'createdAt': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
+      tx.set(
+          newUsernameRef,
+          {
+            'userId': uid,
+            'username': username,
+            'active': true,
+            'updatedAt': FieldValue.serverTimestamp(),
+            'createdAt': FieldValue.serverTimestamp(),
+          },
+          SetOptions(merge: true));
 
       if (oldUsername != null &&
           oldUsername.isNotEmpty &&
@@ -294,22 +297,27 @@ class FirestoreService {
         }
       }
 
-      tx.set(userRef, {
-        'username': username,
-        'updatedAt': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
+      tx.set(
+          userRef,
+          {
+            'username': username,
+            'updatedAt': FieldValue.serverTimestamp(),
+          },
+          SetOptions(merge: true));
 
-      final existingDomain = (userSnap.data()?['customDomain'] as String?)
-          ?.trim()
-          .toLowerCase();
+      final existingDomain =
+          (userSnap.data()?['customDomain'] as String?)?.trim().toLowerCase();
       if (existingDomain != null && existingDomain.isNotEmpty) {
-        tx.set(_db.collection('domain_mappings').doc(existingDomain), {
-          'userId': uid,
-          'username': username,
-          'active': true,
-          'updatedAt': FieldValue.serverTimestamp(),
-          'createdAt': FieldValue.serverTimestamp(),
-        }, SetOptions(merge: true));
+        tx.set(
+            _db.collection('domain_mappings').doc(existingDomain),
+            {
+              'userId': uid,
+              'username': username,
+              'active': true,
+              'updatedAt': FieldValue.serverTimestamp(),
+              'createdAt': FieldValue.serverTimestamp(),
+            },
+            SetOptions(merge: true));
       }
     });
   }
@@ -328,9 +336,8 @@ class FirestoreService {
 
     await _db.runTransaction((tx) async {
       final userSnap = await tx.get(userRef);
-      final oldDomain = (userSnap.data()?['customDomain'] as String?)
-          ?.trim()
-          .toLowerCase();
+      final oldDomain =
+          (userSnap.data()?['customDomain'] as String?)?.trim().toLowerCase();
       final username =
           (userSnap.data()?['username'] as String?)?.trim().toLowerCase();
 
@@ -342,13 +349,16 @@ class FirestoreService {
         }
       }
 
-      tx.set(newDomainRef, {
-        'userId': uid,
-        'username': username ?? '',
-        'active': true,
-        'updatedAt': FieldValue.serverTimestamp(),
-        'createdAt': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
+      tx.set(
+          newDomainRef,
+          {
+            'userId': uid,
+            'username': username ?? '',
+            'active': true,
+            'updatedAt': FieldValue.serverTimestamp(),
+            'createdAt': FieldValue.serverTimestamp(),
+          },
+          SetOptions(merge: true));
 
       if (oldDomain != null && oldDomain.isNotEmpty && oldDomain != domain) {
         final oldDomainRef = _db.collection('domain_mappings').doc(oldDomain);
@@ -358,10 +368,14 @@ class FirestoreService {
         }
       }
 
-      tx.set(userRef, {
-        'customDomain': domain,
-        'updatedAt': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
+      tx.set(
+          userRef,
+          {
+            'customDomain': domain,
+            'publicBaseUrl': 'https://$domain',
+            'updatedAt': FieldValue.serverTimestamp(),
+          },
+          SetOptions(merge: true));
     });
   }
 
@@ -372,9 +386,8 @@ class FirestoreService {
     final userRef = _db.collection('users').doc(uid);
     await _db.runTransaction((tx) async {
       final userSnap = await tx.get(userRef);
-      final oldDomain = (userSnap.data()?['customDomain'] as String?)
-          ?.trim()
-          .toLowerCase();
+      final oldDomain =
+          (userSnap.data()?['customDomain'] as String?)?.trim().toLowerCase();
       if (oldDomain != null && oldDomain.isNotEmpty) {
         final mappingRef = _db.collection('domain_mappings').doc(oldDomain);
         final mappingSnap = await tx.get(mappingRef);
@@ -383,10 +396,14 @@ class FirestoreService {
         }
       }
 
-      tx.set(userRef, {
-        'customDomain': FieldValue.delete(),
-        'updatedAt': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
+      tx.set(
+          userRef,
+          {
+            'customDomain': FieldValue.delete(),
+            'publicBaseUrl': _defaultPublicBaseUrl,
+            'updatedAt': FieldValue.serverTimestamp(),
+          },
+          SetOptions(merge: true));
     });
   }
 }
