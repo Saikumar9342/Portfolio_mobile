@@ -25,6 +25,7 @@ class _DomainSettingsScreenState extends State<DomainSettingsScreen> {
   bool _isSavingUsername = false;
   bool _isSavingDomain = false;
   bool _isSavingBaseUrl = false;
+  bool _isResetting = false;
 
   @override
   void dispose() {
@@ -61,7 +62,7 @@ class _DomainSettingsScreenState extends State<DomainSettingsScreen> {
 
     final base = baseUrl.trim().replaceAll(RegExp(r'/+$'), '');
     if (username != null && username.trim().isNotEmpty) {
-      return '$base/u/${username.trim().toLowerCase()}';
+      return '$base/p/${username.trim().toLowerCase()}';
     }
     return '$base/p/$uid';
   }
@@ -335,6 +336,65 @@ class _DomainSettingsScreenState extends State<DomainSettingsScreen> {
                   value: customLink,
                   subtitle: "Use this as your premium public URL.",
                 ),
+              const SizedBox(height: 32),
+              const Divider(color: Colors.white10),
+              const SizedBox(height: 32),
+              _sectionTitle("Danger Zone"),
+              const SizedBox(height: 12),
+              OutlinedButton.icon(
+                onPressed: _isResetting
+                    ? null
+                    : () async {
+                        final confirm = await ActionDialog.show(
+                          context,
+                          title: "Reset All Settings",
+                          message:
+                              "This will clear your username, custom domain, and revert the base URL to default. Continue?",
+                          confirmLabel: "RESET NOW",
+                          type: ActionDialogType.danger,
+                          onConfirm: () {},
+                        );
+                        if (confirm != true) return;
+
+                        setState(() => _isResetting = true);
+                        try {
+                          await _service.resetUrlSettings();
+                          _usernameController.clear();
+                          _domainController.clear();
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                  content: Text("Settings reset to default")),
+                            );
+                          }
+                        } catch (e) {
+                          if (mounted) {
+                            ActionDialog.show(
+                              context,
+                              title: "Reset Failed",
+                              message: e.toString(),
+                              type: ActionDialogType.danger,
+                              onConfirm: () {},
+                            );
+                          }
+                        } finally {
+                          if (mounted) {
+                            setState(() => _isResetting = false);
+                          }
+                        }
+                      },
+                icon: const Icon(Icons.refresh_rounded),
+                label: const Text("RESET ALL URL SETTINGS"),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppTheme.errorColor,
+                  side: BorderSide(
+                      color: AppTheme.errorColor.withValues(alpha: 0.5)),
+                  minimumSize: const Size.fromHeight(54),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                ),
+              ),
               const SizedBox(height: 80),
             ],
           );

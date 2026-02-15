@@ -449,4 +449,47 @@ class FirestoreService {
 
     return query.snapshots().map((snap) => snap.docs.length);
   }
+
+  Future<void> resetUrlSettings() async {
+    final uid = _currentUid;
+    if (uid == null) throw Exception("Please sign in again.");
+
+    final userRef = _db.collection('users').doc(uid);
+    await _db.runTransaction((tx) async {
+      final userSnap = await tx.get(userRef);
+      final oldDomain =
+          (userSnap.data()?['customDomain'] as String?)?.trim().toLowerCase();
+      final oldUsername =
+          (userSnap.data()?['username'] as String?)?.trim().toLowerCase();
+
+      // 1. Remove Domain Mapping
+      if (oldDomain != null && oldDomain.isNotEmpty) {
+        final mappingRef = _db.collection('domain_mappings').doc(oldDomain);
+        final mappingSnap = await tx.get(mappingRef);
+        if (mappingSnap.exists && mappingSnap.data()?['userId'] == uid) {
+          tx.delete(mappingRef);
+        }
+      }
+
+      // 2. Remove Username Mapping
+      if (oldUsername != null && oldUsername.isNotEmpty) {
+        final usernameRef = _db.collection('usernames').doc(oldUsername);
+        final usernameSnap = await tx.get(usernameRef);
+        if (usernameSnap.exists && usernameSnap.data()?['userId'] == uid) {
+          tx.delete(usernameRef);
+        }
+      }
+
+      // 3. Reset User Doc
+      tx.set(
+          userRef,
+          {
+            'customDomain': FieldValue.delete(),
+            'username': FieldValue.delete(),
+            'publicBaseUrl': _defaultPublicBaseUrl,
+            'updatedAt': FieldValue.serverTimestamp(),
+          },
+          SetOptions(merge: true));
+    });
+  }
 }
