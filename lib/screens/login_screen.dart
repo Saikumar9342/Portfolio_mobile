@@ -431,32 +431,7 @@ class _LoginScreenState extends State<LoginScreen>
   }
 
   Widget _buildBrandIcon() {
-    return SizedBox(
-      width: 140,
-      height: 140,
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          // Background Glow
-          Container(
-            width: 100,
-            height: 100,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              boxShadow: [
-                BoxShadow(
-                  color: AppTheme.primaryColor.withValues(alpha: 0.3),
-                  blurRadius: 40,
-                  spreadRadius: 10,
-                )
-              ],
-            ),
-          ),
-          // Shared Logo Widget
-          const BrandLogo(size: 80),
-        ],
-      ),
-    );
+    return const BrandLogo(size: 100);
   }
 
   Widget _buildGoogleButton() {
@@ -468,38 +443,30 @@ class _LoginScreenState extends State<LoginScreen>
         child: Container(
           padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 24),
           decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              colors: [Color(0xFFF5F5F7), Colors.white],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
+            color: AppTheme.surfaceColor,
             borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: AppTheme.primaryColor.withValues(alpha: 0.2),
+              width: 1,
+            ),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withValues(alpha: 0.2),
-                blurRadius: 15,
-                offset: const Offset(0, 8),
+                color: Colors.black.withValues(alpha: 0.3),
+                blurRadius: 20,
+                offset: const Offset(0, 10),
               )
             ],
           ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              // Custom Google "G" Logo
-              SizedBox(
-                width: 24,
-                height: 24,
-                child: Stack(
-                  children: [
-                    Text(
-                      "G",
-                      style: GoogleFonts.roboto(
-                        color: const Color(0xFF4285F4),
-                        fontWeight: FontWeight.w900,
-                        fontSize: 22,
-                      ),
-                    ),
-                  ],
+              // Themed Google "G" Logo
+              Text(
+                "G",
+                style: GoogleFonts.roboto(
+                  color: AppTheme.primaryColor,
+                  fontWeight: FontWeight.w900,
+                  fontSize: 22,
                 ),
               ),
               const SizedBox(width: 16),
@@ -508,7 +475,7 @@ class _LoginScreenState extends State<LoginScreen>
                 style: GoogleFonts.outfit(
                   fontSize: 17,
                   fontWeight: FontWeight.bold,
-                  color: Colors.black87,
+                  color: AppTheme.textPrimary,
                   letterSpacing: -0.2,
                 ),
               ),

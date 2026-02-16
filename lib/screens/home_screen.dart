@@ -286,8 +286,8 @@ class _HomeScreenState extends State<HomeScreen> {
                               child: _Bouncy(
                                 child: _QuickActionCard(
                                   title: "Projects",
-                                  icon: Icons.work_outline_rounded,
-                                  color: const Color(0xFFC6A969),
+                                  icon: Icons.layers_outlined,
+                                  color: AppTheme.primaryColor,
                                   onTap: () => Navigator.push(
                                     context,
                                     MaterialPageRoute(
@@ -301,8 +301,8 @@ class _HomeScreenState extends State<HomeScreen> {
                               child: _Bouncy(
                                 child: _QuickActionCard(
                                   title: "Resume",
-                                  icon: Icons.upload_file_rounded,
-                                  color: Colors.blueAccent,
+                                  icon: Icons.description_outlined,
+                                  color: AppTheme.primaryColor,
                                   onTap: () => Navigator.push(
                                     context,
                                     MaterialPageRoute(
@@ -317,8 +317,8 @@ class _HomeScreenState extends State<HomeScreen> {
                               child: _Bouncy(
                                 child: _QuickActionCard(
                                   title: "Profile",
-                                  icon: Icons.person_rounded,
-                                  color: Colors.purpleAccent,
+                                  icon: Icons.person_outline_rounded,
+                                  color: AppTheme.primaryColor,
                                   onTap: () => Navigator.push(
                                     context,
                                     MaterialPageRoute(
@@ -574,16 +574,14 @@ class _QuickActionCard extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.15),
-                shape: BoxShape.circle,
-                boxShadow: [
-                  BoxShadow(
-                    color: color.withValues(alpha: 0.2),
-                    blurRadius: 12,
-                    spreadRadius: 0,
-                  )
-                ]),
-            child: Icon(icon, color: color, size: 24),
+              color: color.withValues(alpha: 0.1),
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: color.withValues(alpha: 0.2),
+                width: 1.5,
+              ),
+            ),
+            child: Icon(icon, color: color, size: 28),
           ),
           const SizedBox(height: 12),
           Text(

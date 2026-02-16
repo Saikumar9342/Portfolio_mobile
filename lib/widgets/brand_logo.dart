@@ -7,23 +7,19 @@ class BrandLogo extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(size * 0.22),
-      child: Container(
-        color: Colors.transparent,
+    return SizedBox(
+      width: size,
+      height: size,
+      child: SvgPicture.asset(
+        'assets/images/brand_logo.svg',
         width: size,
         height: size,
-        child: SvgPicture.asset(
-          'assets/images/brand_logo.svg',
+        fit: BoxFit.contain,
+        placeholderBuilder: (_) => Image.asset(
+          'assets/images/brand_logo.png',
           width: size,
           height: size,
           fit: BoxFit.contain,
-          placeholderBuilder: (_) => Image.asset(
-            'assets/images/brand_logo.png',
-            width: size,
-            height: size,
-            fit: BoxFit.cover,
-          ),
         ),
       ),
     );
