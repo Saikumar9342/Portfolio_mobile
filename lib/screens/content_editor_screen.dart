@@ -1049,7 +1049,7 @@ class _ContentEditorScreenState extends State<ContentEditorScreen> {
 
     // 2. Pick End Date or "Present"
     if (isExperiencePeriod) {
-      if (!mounted) return;
+      if (!context.mounted) return;
       // Ask if currently working
       final isCurrent = await showDialog<bool>(
         context: context,
@@ -1076,7 +1076,7 @@ class _ContentEditorScreenState extends State<ContentEditorScreen> {
         isPresent = true;
         end = DateTime.now();
       } else {
-        if (!mounted) return;
+        if (!context.mounted) return;
         end = await showDatePicker(
           context: context,
           initialDate: start,
@@ -1088,7 +1088,7 @@ class _ContentEditorScreenState extends State<ContentEditorScreen> {
         if (end == null) return; // User cancelled end date
       }
     } else {
-      if (!mounted) return;
+      if (!context.mounted) return;
       // Education: Just pick end date usually
       end = await showDatePicker(
         context: context,

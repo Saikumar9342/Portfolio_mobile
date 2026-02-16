@@ -94,8 +94,8 @@ class _DomainSettingsScreenState extends State<DomainSettingsScreen> {
               '';
           final username = (data['username'] as String?) ?? '';
           final customDomain = (data['customDomain'] as String?) ?? '';
-          final baseUrl = (data['publicBaseUrl'] as String?) ??
-              "https://resume-portfolioweb.netlify.app";
+          final baseUrl =
+              (data['publicBaseUrl'] as String?) ?? "https://atom.anithix.com";
 
           if (_usernameController.text.isEmpty && username.isNotEmpty) {
             _usernameController.text = username;
@@ -122,10 +122,10 @@ class _DomainSettingsScreenState extends State<DomainSettingsScreen> {
               _sectionTitle("Public Portfolio URL"),
               const SizedBox(height: 12),
               _linkCard(
-                title: "Default Link",
+                title: "Free Portfolio Link",
                 value: publicLink,
                 subtitle:
-                    "This works immediately once username is set (no web login required).",
+                    "This link is generated instantly. Share it anywhere to show your portfolio under the anithix brand.",
               ),
               const SizedBox(height: 16),
               _sectionTitle("Public Base URL"),
@@ -133,7 +133,7 @@ class _DomainSettingsScreenState extends State<DomainSettingsScreen> {
               CustomTextField(
                 label: "BASE URL",
                 controller: _baseUrlController,
-                hint: "https://resume-portfolioweb.netlify.app",
+                hint: "https://atom.anithix.com",
                 prefixIcon: Icons.public_rounded,
               ),
               const SizedBox(height: 12),
@@ -241,8 +241,13 @@ class _DomainSettingsScreenState extends State<DomainSettingsScreen> {
                       },
                 isLoading: _isSavingUsername,
               ),
+              const SizedBox(height: 12),
+              _infoBox(
+                  "Free users can customize their URL path (e.g., anithix.com/u/yourname). Changing this will immediately update your public link."),
               const SizedBox(height: 28),
               _sectionTitle("Custom Domain (Premium-ready)"),
+              _infoBox(
+                  "Premium users can connect their own branded domain (e.g., yourname.com). This requires external DNS configuration."),
               const SizedBox(height: 12),
               CustomTextField(
                 label: "CUSTOM DOMAIN",
@@ -343,25 +348,30 @@ class _DomainSettingsScreenState extends State<DomainSettingsScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      "DNS Setup Notes",
-                      style: GoogleFonts.outfit(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w700,
-                        color: Colors.white,
-                      ),
+                    Row(
+                      children: [
+                        const Icon(Icons.info_outline_rounded,
+                            color: AppTheme.primaryColor, size: 18),
+                        const SizedBox(width: 8),
+                        Text(
+                          "Premium Domain Setup Instructions",
+                          style: GoogleFonts.outfit(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 8),
-                    Text(
-                      "1. In your domain registrar, point your domain to Netlify.\n"
-                      "2. Add this custom domain in your Netlify site settings.\n"
-                      "3. After DNS propagation, your domain will open this portfolio.",
-                      style: GoogleFonts.inter(
-                        fontSize: 12,
-                        color: AppTheme.textSecondary,
-                        height: 1.5,
-                      ),
-                    ),
+                    const SizedBox(height: 16),
+                    _dnsStep("1. Update DNS at your Registrar",
+                        "Log into GoDaddy/Namecheap and point your domain to our servers."),
+                    _dnsStep("2. Add A-Record",
+                        "Type: A, Name: @, Value: 75.2.60.5"),
+                    _dnsStep("3. Add CNAME-Record",
+                        "Type: CNAME, Name: www, Value: anithix.com"),
+                    _dnsStep("4. Validation",
+                        "After saving, it may take up to 24 hours for DNS to propagate worldwide."),
                   ],
                 ),
               ),
@@ -397,14 +407,14 @@ class _DomainSettingsScreenState extends State<DomainSettingsScreen> {
                           await _service.resetUrlSettings();
                           _usernameController.clear();
                           _domainController.clear();
-                          if (mounted) {
+                          if (context.mounted) {
                             ScaffoldMessenger.of(context).showSnackBar(
                               const SnackBar(
                                   content: Text("Settings reset to default")),
                             );
                           }
                         } catch (e) {
-                          if (mounted) {
+                          if (context.mounted) {
                             ActionDialog.show(
                               context,
                               title: "Reset Failed",
@@ -517,6 +527,52 @@ class _DomainSettingsScreenState extends State<DomainSettingsScreen> {
               ),
             ],
           )
+        ],
+      ),
+    );
+  }
+
+  Widget _infoBox(String text) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: AppTheme.primaryColor.withValues(alpha: 0.05),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppTheme.primaryColor.withValues(alpha: 0.1)),
+      ),
+      child: Text(
+        text,
+        style: GoogleFonts.inter(
+          fontSize: 12,
+          color: AppTheme.textSecondary,
+          height: 1.4,
+        ),
+      ),
+    );
+  }
+
+  Widget _dnsStep(String title, String desc) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: GoogleFonts.inter(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              color: AppTheme.primaryColor,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            desc,
+            style: GoogleFonts.inter(
+              fontSize: 11,
+              color: AppTheme.textSecondary,
+            ),
+          ),
         ],
       ),
     );

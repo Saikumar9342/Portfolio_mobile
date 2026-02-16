@@ -4,8 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 class FirestoreService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
   static const String _adminEmail = "pasumarthisaikumar6266@gmail.com";
-  static const String _defaultPublicBaseUrl =
-      "https://resume-portfolioweb.netlify.app";
+  static const String _defaultPublicBaseUrl = "https://atom.anithix.com";
 
   // --- Language Support ---
 
@@ -276,6 +275,15 @@ class FirestoreService {
         }
       }
 
+      DocumentSnapshot? oldSnap;
+      if (oldUsername != null &&
+          oldUsername.isNotEmpty &&
+          oldUsername != username) {
+        final oldRef = _db.collection('usernames').doc(oldUsername);
+        oldSnap = await tx.get(oldRef);
+      }
+
+      // --- ALL WRITES START HERE ---
       tx.set(
           newUsernameRef,
           {
@@ -283,18 +291,13 @@ class FirestoreService {
             'username': username,
             'active': true,
             'updatedAt': FieldValue.serverTimestamp(),
-            'createdAt': FieldValue.serverTimestamp(),
           },
           SetOptions(merge: true));
 
-      if (oldUsername != null &&
-          oldUsername.isNotEmpty &&
-          oldUsername != username) {
-        final oldRef = _db.collection('usernames').doc(oldUsername);
-        final oldSnap = await tx.get(oldRef);
-        if (oldSnap.exists && oldSnap.data()?['userId'] == uid) {
-          tx.delete(oldRef);
-        }
+      if (oldSnap != null &&
+          oldSnap.exists &&
+          (oldSnap.data() as Map<String, dynamic>)['userId'] == uid) {
+        tx.delete(_db.collection('usernames').doc(oldUsername));
       }
 
       tx.set(
@@ -336,19 +339,26 @@ class FirestoreService {
 
     await _db.runTransaction((tx) async {
       final userSnap = await tx.get(userRef);
+      final userData = userSnap.data();
       final oldDomain =
-          (userSnap.data()?['customDomain'] as String?)?.trim().toLowerCase();
-      final username =
-          (userSnap.data()?['username'] as String?)?.trim().toLowerCase();
+          (userData?['customDomain'] as String?)?.trim().toLowerCase();
+      final username = (userData?['username'] as String?)?.trim().toLowerCase();
 
       final domainSnap = await tx.get(newDomainRef);
       if (domainSnap.exists) {
-        final ownerId = domainSnap.data()?['userId'];
+        final ownerId = (domainSnap.data() as Map<String, dynamic>)['userId'];
         if (ownerId != uid) {
           throw Exception("Domain is already connected to another account.");
         }
       }
 
+      DocumentSnapshot? oldDomainSnap;
+      if (oldDomain != null && oldDomain.isNotEmpty && oldDomain != domain) {
+        final oldDomainRef = _db.collection('domain_mappings').doc(oldDomain);
+        oldDomainSnap = await tx.get(oldDomainRef);
+      }
+
+      // --- ALL WRITES START HERE ---
       tx.set(
           newDomainRef,
           {
@@ -360,12 +370,10 @@ class FirestoreService {
           },
           SetOptions(merge: true));
 
-      if (oldDomain != null && oldDomain.isNotEmpty && oldDomain != domain) {
-        final oldDomainRef = _db.collection('domain_mappings').doc(oldDomain);
-        final oldDomainSnap = await tx.get(oldDomainRef);
-        if (oldDomainSnap.exists && oldDomainSnap.data()?['userId'] == uid) {
-          tx.delete(oldDomainRef);
-        }
+      if (oldDomainSnap != null &&
+          oldDomainSnap.exists &&
+          (oldDomainSnap.data() as Map<String, dynamic>)['userId'] == uid) {
+        tx.delete(_db.collection('domain_mappings').doc(oldDomain!));
       }
 
       tx.set(
@@ -391,7 +399,8 @@ class FirestoreService {
       if (oldDomain != null && oldDomain.isNotEmpty) {
         final mappingRef = _db.collection('domain_mappings').doc(oldDomain);
         final mappingSnap = await tx.get(mappingRef);
-        if (mappingSnap.exists && mappingSnap.data()?['userId'] == uid) {
+        final mappingData = mappingSnap.data();
+        if (mappingSnap.exists && mappingData?['userId'] == uid) {
           tx.delete(mappingRef);
         }
       }
@@ -462,25 +471,31 @@ class FirestoreService {
       final oldUsername =
           (userSnap.data()?['username'] as String?)?.trim().toLowerCase();
 
-      // 1. Remove Domain Mapping
+      DocumentSnapshot? mappingSnap;
       if (oldDomain != null && oldDomain.isNotEmpty) {
         final mappingRef = _db.collection('domain_mappings').doc(oldDomain);
-        final mappingSnap = await tx.get(mappingRef);
-        if (mappingSnap.exists && mappingSnap.data()?['userId'] == uid) {
-          tx.delete(mappingRef);
-        }
+        mappingSnap = await tx.get(mappingRef);
       }
 
-      // 2. Remove Username Mapping
+      DocumentSnapshot? usernameSnap;
       if (oldUsername != null && oldUsername.isNotEmpty) {
         final usernameRef = _db.collection('usernames').doc(oldUsername);
-        final usernameSnap = await tx.get(usernameRef);
-        if (usernameSnap.exists && usernameSnap.data()?['userId'] == uid) {
-          tx.delete(usernameRef);
-        }
+        usernameSnap = await tx.get(usernameRef);
       }
 
-      // 3. Reset User Doc
+      // --- ALL WRITES START HERE ---
+      if (mappingSnap != null &&
+          mappingSnap.exists &&
+          (mappingSnap.data() as Map<String, dynamic>)['userId'] == uid) {
+        tx.delete(_db.collection('domain_mappings').doc(oldDomain!));
+      }
+
+      if (usernameSnap != null &&
+          usernameSnap.exists &&
+          (usernameSnap.data() as Map<String, dynamic>)['userId'] == uid) {
+        tx.delete(_db.collection('usernames').doc(oldUsername!));
+      }
+
       tx.set(
           userRef,
           {
