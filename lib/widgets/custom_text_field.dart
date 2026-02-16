@@ -14,6 +14,7 @@ class CustomTextField extends StatelessWidget {
   final VoidCallback? onSuffixTap;
   final bool obscureText;
   final bool enabled;
+  final bool readOnly;
   final void Function(String)? onChanged;
 
   const CustomTextField({
@@ -29,6 +30,7 @@ class CustomTextField extends StatelessWidget {
     this.onSuffixTap,
     this.obscureText = false,
     this.enabled = true,
+    this.readOnly = false,
     this.onChanged,
   });
 
@@ -53,6 +55,7 @@ class CustomTextField extends StatelessWidget {
         TextFormField(
           controller: controller,
           enabled: enabled,
+          readOnly: readOnly,
           maxLines: isMultiline ? 5 : 1,
           keyboardType: keyboardType,
           style: const TextStyle(color: Colors.white),

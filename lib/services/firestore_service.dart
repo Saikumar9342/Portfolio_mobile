@@ -153,6 +153,11 @@ class FirestoreService {
     return _getProjectsCollection(languageCode: languageCode).get();
   }
 
+  Future<DocumentSnapshot<Map<String, dynamic>>> getProject(String docId,
+      {String? languageCode}) {
+    return _getProjectsCollection(languageCode: languageCode).doc(docId).get();
+  }
+
   Future<void> addProject(Map<String, dynamic> data, {String? languageCode}) {
     // Add createdAt server timestamp
     final d = Map<String, dynamic>.from(data);
@@ -423,13 +428,13 @@ class FirestoreService {
     var query = _db.collection('messages');
 
     if (user.email == _adminEmail) {
-      // NOTE: Firestore 'whereIn' does not support null values.
-      // To properly support legacy messages (null), we would need:
-      // 1. Two separate queries (one for null, one for uid) and merge them.
-      // 2. OR migrate legacy data to have the admin UID.
-      // For stability now, we only query the explicit UID.
+      // Use Filter.or to support both specific UID and legacy null values (for admin)
+      // Note: Firestore 'whereIn' does not support null values, so Filter.or is used as an alternative.
       return query
-          .where('targetUserId', isEqualTo: user.uid)
+          .where(Filter.or(
+            Filter('targetUserId', isEqualTo: user.uid),
+            Filter('targetUserId', isNull: true),
+          ))
           .orderBy('timestamp', descending: true)
           .snapshots();
     }
@@ -447,11 +452,11 @@ class FirestoreService {
         _db.collection('messages').where('status', isEqualTo: 'unread');
 
     if (user.email == _adminEmail) {
-      // NOTE: Firestore 'whereIn' does not support null values.
-      // We must query for the user's ID specifically, or handle null via a separate query if needed.
-      // For now, to avoid the crash, we only check for the user ID.
-      // If legacy messages (null) are crucial, they would need a separate query and client-side merge.
-      query = query.where('targetUserId', isEqualTo: user.uid);
+      // Use Filter.or to support both specific UID and legacy null values (for admin)
+      query = query.where(Filter.or(
+        Filter('targetUserId', isEqualTo: user.uid),
+        Filter('targetUserId', isNull: true),
+      ));
     } else {
       query = query.where('targetUserId', isEqualTo: user.uid);
     }

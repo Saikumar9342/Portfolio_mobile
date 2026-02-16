@@ -63,6 +63,30 @@ class TranslationService {
     debugPrint("Translation completed for $languageCode");
   }
 
+  /// Maps 3-letter ISO codes (ISO 639-2/3) to 2-letter codes (ISO 639-1) for Google Translate.
+  /// This ensures compatibility with codes like 'ita' -> 'it', 'hin' -> 'hi'.
+  String _normalizeLanguageCode(String code) {
+    // If it's already a 2-letter code or shorter, use it as-is.
+    if (code.length <= 2) return code;
+
+    // Common 3-letter to 2-letter overrides where substring(0,2) isn't enough
+    final overrides = {
+      'jpn': 'ja',
+      'zho': 'zh',
+      'fil': 'tl', // Filipino to Tagalog
+      'ces': 'cs', // Czech
+      'deu': 'de', // German
+      'fra': 'fr', // French
+      'fas': 'fa', // Persian
+    };
+
+    final lower = code.toLowerCase();
+    if (overrides.containsKey(lower)) return overrides[lower]!;
+
+    // General rule: most 3-letter codes share the first 2 letters with their 2-letter counterpart
+    return lower.substring(0, 2);
+  }
+
   /// Recursively translate values
   Future<dynamic> _translateValue(dynamic value, String targetLang) async {
     if (value is String) {
@@ -82,11 +106,26 @@ class TranslationService {
       if (double.tryParse(value) != null) return value;
 
       try {
+        // 1. Try with the original code (e.g., 'ita', 'hin') as it might be supported directly
         var translation = await _translator.translate(value, to: targetLang);
         return translation.text;
       } catch (e) {
-        // Fallback: return original if translation fails
-        debugPrint('Translation error for "$value": $e');
+        // 2. If it's a "not supported" error, try normalizing (e.g., 'ita' -> 'it')
+        if (e.toString().contains('LanguageNotSupportedException')) {
+          try {
+            final normalized = _normalizeLanguageCode(targetLang);
+            if (normalized != targetLang) {
+              var translation =
+                  await _translator.translate(value, to: normalized);
+              return translation.text;
+            }
+          } catch (_) {
+            // If normalization also fails, we'll fall through to the final return value
+          }
+        }
+
+        // Final fallback: return original if translation still fails
+        debugPrint('Translation error for "$value" ($targetLang): $e');
         return value;
       }
     } else if (value is List) {
@@ -122,7 +161,8 @@ class TranslationService {
         'icon',
         'code'
       ].contains(key.toLowerCase())) {
-        newMap[key] = map[key];
+        // DO NOT copy images, IDs, or links to localized documents.
+        // This ensures the web app always correctly falls back to the default English versions.
         continue;
       }
       newMap[key] = await _translateValue(map[key], targetLang);

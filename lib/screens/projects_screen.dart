@@ -540,6 +540,12 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
       _githubLinkController.text = widget.initialData!['githubLink'] ?? '';
     }
 
+    if (widget.languageCode != null &&
+        widget.languageCode != 'en' &&
+        widget.docId != null) {
+      _loadBaseProjectData();
+    }
+
     // Add listeners to track changes
     void setDirty() {
       if (!_isDirty) setState(() => _isDirty = true);
@@ -568,6 +574,25 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
     _liveLinkController.dispose();
     _githubLinkController.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadBaseProjectData() async {
+    try {
+      final baseDoc = await FirestoreService()
+          .getProject(widget.docId!, languageCode: 'en');
+      if (baseDoc.exists && baseDoc.data() != null) {
+        final data = baseDoc.data()!;
+        if (_imageUrlController.text.isEmpty && data['imageUrl'] != null) {
+          if (mounted) {
+            setState(() {
+              _imageUrlController.text = data['imageUrl'];
+            });
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint("Error loading base project data: $e");
+    }
   }
 
   Future<void> _save() async {
@@ -731,56 +756,107 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
                       fontWeight: FontWeight.w600,
                       color: AppTheme.textSecondary)),
               const SizedBox(height: 8),
-              Hero(
-                tag: widget.docId != null
-                    ? 'project_image_${widget.docId}'
-                    : 'new_project_image',
-                child: GestureDetector(
-                  onTap: _pickImage,
-                  child: Container(
-                    height: 150,
-                    width: double.infinity,
+              Builder(builder: (context) {
+                final isDefaultLanguage =
+                    widget.languageCode == null || widget.languageCode == 'en';
+
+                if (!isDefaultLanguage) {
+                  return Container(
+                    padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                        color: AppTheme.inputFillColor,
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: Colors.white10),
-                        image: !_isUploadingImage &&
-                                _imageUrlController.text.isNotEmpty
-                            ? DecorationImage(
-                                image: NetworkImage(_imageUrlController.text),
-                                fit: BoxFit.cover)
-                            : null),
-                    child: _isUploadingImage
-                        ? const Center(
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                CircularProgressIndicator(
-                                    color: AppTheme.primaryColor),
-                                SizedBox(height: 12),
-                                Text("Uploading...",
-                                    style: TextStyle(
-                                        color: AppTheme.textSecondary)),
-                              ],
+                      color: AppTheme.inputFillColor,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: Colors.white10),
+                    ),
+                    child: Column(
+                      children: [
+                        if (_imageUrlController.text.isNotEmpty)
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(12),
+                            child: Image.network(
+                              _imageUrlController.text,
+                              height: 150,
+                              width: double.infinity,
+                              fit: BoxFit.cover,
                             ),
-                          )
-                        : _imageUrlController.text.isEmpty
-                            ? const Center(
-                                child: Column(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                    Icon(Icons.add_photo_alternate_outlined,
-                                        size: 32, color: AppTheme.primaryColor),
-                                    SizedBox(height: 8),
-                                    Text("Tap to upload image",
-                                        style: TextStyle(
-                                            color: AppTheme.textSecondary))
-                                  ]))
-                            : null,
+                          ),
+                        const SizedBox(height: 12),
+                        Row(
+                          children: [
+                            const Icon(Icons.info_outline,
+                                size: 20, color: AppTheme.primaryColor),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Text(
+                                "Images are shared across all languages. Switch to English to change this project's cover.",
+                                style: GoogleFonts.inter(
+                                  fontSize: 13,
+                                  color: AppTheme.textSecondary,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  );
+                }
+
+                return Hero(
+                  tag: widget.docId != null
+                      ? 'project_image_${widget.docId}'
+                      : 'new_project_image',
+                  child: GestureDetector(
+                    onTap: _pickImage,
+                    child: Container(
+                      height: 150,
+                      width: double.infinity,
+                      decoration: BoxDecoration(
+                          color: AppTheme.inputFillColor,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: Colors.white10),
+                          image: !_isUploadingImage &&
+                                  _imageUrlController.text.isNotEmpty
+                              ? DecorationImage(
+                                  image: NetworkImage(_imageUrlController.text),
+                                  fit: BoxFit.cover)
+                              : null),
+                      child: _isUploadingImage
+                          ? const Center(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  CircularProgressIndicator(
+                                      color: AppTheme.primaryColor),
+                                  SizedBox(height: 12),
+                                  Text("Uploading...",
+                                      style: TextStyle(
+                                          color: AppTheme.textSecondary)),
+                                ],
+                              ),
+                            )
+                          : _imageUrlController.text.isEmpty
+                              ? const Center(
+                                  child: Column(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
+                                      children: [
+                                      Icon(Icons.add_photo_alternate_outlined,
+                                          size: 32,
+                                          color: AppTheme.primaryColor),
+                                      SizedBox(height: 8),
+                                      Text("Tap to upload image",
+                                          style: TextStyle(
+                                              color: AppTheme.textSecondary))
+                                    ]))
+                              : null,
+                    ),
                   ),
-                ),
-              ),
-              if (_imageUrlController.text.isNotEmpty)
+                );
+              }),
+              if ((widget.languageCode == null ||
+                      widget.languageCode == 'en') &&
+                  _imageUrlController.text.isNotEmpty)
                 Padding(
                   padding: const EdgeInsets.only(top: 8),
                   child: TextButton(

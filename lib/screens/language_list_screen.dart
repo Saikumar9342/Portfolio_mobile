@@ -159,24 +159,30 @@ class LanguageListScreen extends StatelessWidget {
                   final val = nameCtrl.text.trim();
                   if (val.length < 2) return;
 
-                  // Lookup in Firebase using Language Search service
-                  final match =
-                      await LanguageSearchService().findLanguageByName(val);
-                  if (match != null) {
-                    setState(() {
-                      codeCtrl.text = match['code']!;
-                      flagCtrl.text = match['flag']!;
-                    });
-                  } else {
-                    if (context.mounted) {
-                      _showStatusDialog(
-                        context,
-                        title: "Language Not Found",
-                        message:
-                            "We couldn't find details for '$val'. Please try another language name.",
-                        isError: true,
-                      );
+                  setState(() => isSearching = true);
+                  try {
+                    // Lookup in Firebase using Language Search service
+                    final match =
+                        await LanguageSearchService().findLanguageByName(val);
+                    if (match != null) {
+                      setState(() {
+                        codeCtrl.text = match['code']!;
+                        flagCtrl.text = match['flag']!;
+                      });
+                    } else {
+                      // Just a subtle feedback or do nothing, don't show an error dialog
+                      // as the user can still click "Add & Translate" and it will use fallback.
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text("Using generic setup for '$val'"),
+                            duration: const Duration(seconds: 1),
+                          ),
+                        );
+                      }
                     }
+                  } finally {
+                    setState(() => isSearching = false);
                   }
                 },
                 onChanged: (val) {
@@ -220,63 +226,81 @@ class LanguageListScreen extends StatelessWidget {
             ),
             TextButton(
               onPressed: () async {
-                final langCode = codeCtrl.text.trim().toLowerCase();
-                final langName = nameCtrl.text.trim();
+                String langName = nameCtrl.text.trim();
+                if (langName.isEmpty) return;
 
-                if (langCode.isNotEmpty && langName.isNotEmpty) {
-                  // Duplicate Check
-                  if (existingLanguages.any((l) => l.code == langCode)) {
-                    _showStatusDialog(
-                      context,
-                      title: "Already Exists",
-                      message: "'$langName' is already part of your portfolio.",
-                      isError: true,
-                    );
-                    return;
+                _showProcessingDialog(context);
+
+                try {
+                  String langCode = codeCtrl.text.trim().toLowerCase();
+                  String flagEmoji = flagCtrl.text.trim();
+
+                  // 1. Automatic lookup if fields are empty (The "Magic" part)
+                  if (langCode.isEmpty || flagEmoji.isEmpty) {
+                    final match = await LanguageSearchService()
+                        .findLanguageByName(langName);
+                    if (match != null) {
+                      langCode = match['code']!.toLowerCase();
+                      flagEmoji = match['flag']!;
+                    } else {
+                      // Fallback if not found in database - use first 2 letters as code
+                      langCode = langName.length >= 2
+                          ? langName.substring(0, 2).toLowerCase()
+                          : langName.toLowerCase();
+                      flagEmoji = '🌐';
+                    }
                   }
 
-                  setState(() => isSearching = true);
-                  // Show the complex themed loader we built earlier
-                  _showProcessingDialog(context);
-
-                  try {
-                    await FirestoreService().addLanguage(langCode, {
-                      'name': nameCtrl.text.trim(),
-                      'flag': flagCtrl.text.trim(),
-                      'isDefault': false,
-                    });
-
-                    await TranslationService()
-                        .translateAndSaveContentForLanguage(langCode);
-
+                  // Duplicate Check
+                  if (existingLanguages.any((l) => l.code == langCode)) {
                     if (context.mounted) {
-                      Navigator.pop(context); // pop processing dialog
-                      Navigator.pop(ctx); // pop add dialog
-
-                      _showStatusDialog(
-                        context,
-                        title: "Setup Complete",
-                        message:
-                            "$langName has been successfully integrated and translated into your portfolio.",
-                      );
+                      Navigator.pop(context); // pop processing
                     }
-                  } catch (e) {
                     if (context.mounted) {
-                      Navigator.pop(context); // pop processing dialog
                       _showStatusDialog(
                         context,
-                        title: "Sync Error",
-                        message: e.toString(),
+                        title: "Already Exists",
+                        message:
+                            "'$langName' is already part of your portfolio.",
                         isError: true,
                       );
                     }
-                  } finally {
-                    setState(() => isSearching = false);
+                    return;
+                  }
+
+                  await FirestoreService().addLanguage(langCode, {
+                    'name': langName,
+                    'flag': flagEmoji,
+                    'isDefault': false,
+                  });
+
+                  await TranslationService()
+                      .translateAndSaveContentForLanguage(langCode);
+
+                  if (context.mounted) {
+                    Navigator.pop(context); // pop processing dialog
+                    Navigator.pop(ctx); // pop add dialog
+
+                    _showStatusDialog(
+                      context,
+                      title: "Setup Complete",
+                      message:
+                          "$langName (code: $langCode) has been successfully integrated and translated into your portfolio.",
+                    );
+                  }
+                } catch (e) {
+                  if (context.mounted) {
+                    Navigator.pop(context); // pop processing dialog
+                    _showStatusDialog(
+                      context,
+                      title: "Setup Failed",
+                      message: "An error occurred: $e",
+                      isError: true,
+                    );
                   }
                 }
               },
-              child: const Text("Add & Translate",
-                  style: TextStyle(color: AppTheme.primaryColor)),
+              child: const Text("Add & Translate"),
             ),
           ],
         ),

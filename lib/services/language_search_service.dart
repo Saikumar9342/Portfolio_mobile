@@ -13,7 +13,25 @@ class LanguageSearchService {
     if (query.isEmpty) return null;
 
     try {
-      // 1. Try exact match on 'search_name' (lowercase)
+      // 1. Local Fallback for common languages (Speed & Magic)
+      final localMapping = {
+        'telugu': {'code': 'te', 'flag': '🇮🇳'},
+        'hindi': {'code': 'hi', 'flag': '🇮🇳'},
+        'spanish': {'code': 'es', 'flag': '🇪🇸'},
+        'french': {'code': 'fr', 'flag': '🇫🇷'},
+        'italian': {'code': 'it', 'flag': '🇮🇹'},
+        'german': {'code': 'de', 'flag': '🇩🇪'},
+        'japanese': {'code': 'ja', 'flag': '🇯🇵'},
+        'kannada': {'code': 'kn', 'flag': '🇮🇳'},
+        'tamil': {'code': 'ta', 'flag': '🇮🇳'},
+        'malayalam': {'code': 'ml', 'flag': '🇮🇳'},
+      };
+
+      if (localMapping.containsKey(query)) {
+        return Map<String, String>.from(localMapping[query]!);
+      }
+
+      // 2. Try exact match on 'search_name' (lowercase)
       final snapshot = await _db
           .collection('languages_config')
           .where('search_name', isEqualTo: query)

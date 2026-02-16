@@ -113,6 +113,20 @@ class _ContentEditorScreenState extends State<ContentEditorScreen> {
 
   Future<void> _loadData() async {
     try {
+      final isDefaultLanguage =
+          widget.languageCode == null || widget.languageCode == 'en';
+
+      Map<String, dynamic> baseFirestoreData = {};
+      if (!isDefaultLanguage) {
+        // Fetch base data (English) to preserve common fields like images
+        final baseSnapshot = await FirestoreService()
+            .streamContent(widget.docId, languageCode: 'en')
+            .first;
+        if (baseSnapshot.exists && baseSnapshot.data() != null) {
+          baseFirestoreData = baseSnapshot.data()!;
+        }
+      }
+
       final snapshot = await FirestoreService()
           .streamContent(widget.docId, languageCode: widget.languageCode)
           .first;
@@ -123,7 +137,12 @@ class _ContentEditorScreenState extends State<ContentEditorScreen> {
       }
 
       final defaultData = _getDefaultData(widget.docId);
-      final Map<String, dynamic> data = {...defaultData, ...fetchedData};
+      // Merge order: Hardcoded Defaults < Base Firestore (EN) < Localized Firestore
+      final Map<String, dynamic> data = {
+        ...defaultData,
+        ...baseFirestoreData,
+        ...fetchedData
+      };
 
       // Explicitly remove legacy social fields from contact section to avoid confusion
       if (widget.docId == 'contact') {
@@ -307,8 +326,16 @@ class _ContentEditorScreenState extends State<ContentEditorScreen> {
         try {
           switch (field.type) {
             case DataType.string:
-            case DataType.image:
               data[key] = field.controller.text;
+              break;
+            case DataType.image:
+              // Only save image updates if we are in the default language
+              // This prevents images from being reset or duplicated across languages
+              final isDefaultLanguage =
+                  widget.languageCode == null || widget.languageCode == 'en';
+              if (isDefaultLanguage) {
+                data[key] = field.controller.text;
+              }
               break;
             case DataType.stringList:
               data[key] = field.controller.text
@@ -599,6 +626,8 @@ class _ContentEditorScreenState extends State<ContentEditorScreen> {
     }
 
     if (field.type == DataType.image) {
+      final isDefaultLanguage =
+          widget.languageCode == null || widget.languageCode == 'en';
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -607,6 +636,8 @@ class _ContentEditorScreenState extends State<ContentEditorScreen> {
             controller: field.controller,
             hint: "Image URL",
             prefixIcon: Icons.link,
+            readOnly:
+                !isDefaultLanguage, // Restrict direct edit for translations
           ),
           const SizedBox(height: 12),
           Container(
@@ -644,12 +675,41 @@ class _ContentEditorScreenState extends State<ContentEditorScreen> {
                     : null,
           ),
           const SizedBox(height: 12),
-          PrimaryButton(
-            text: _isUploadingImage ? "Wait for Upload..." : "Upload New Image",
-            onPressed: () => _pickImage(field),
-            isLoading: _isUploadingImage,
-            icon: Icons.cloud_upload_outlined,
-          ),
+          if (isDefaultLanguage)
+            PrimaryButton(
+              text:
+                  _isUploadingImage ? "Wait for Upload..." : "Upload New Image",
+              onPressed: () => _pickImage(field),
+              isLoading: _isUploadingImage,
+              icon: Icons.cloud_upload_outlined,
+            )
+          else
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppTheme.primaryColor.withValues(alpha: 0.05),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                    color: AppTheme.primaryColor.withValues(alpha: 0.2)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.info_outline,
+                      size: 20, color: AppTheme.primaryColor),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      "Images are common across all languages. To update this image, please switch back to the default (English) version.",
+                      style: GoogleFonts.inter(
+                        fontSize: 13,
+                        color: AppTheme.textSecondary,
+                        height: 1.4,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
         ],
       );
     }
