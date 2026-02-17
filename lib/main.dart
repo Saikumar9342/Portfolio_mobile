@@ -58,7 +58,10 @@ class _AuthWrapperState extends State<_AuthWrapper> {
   @override
   Widget build(BuildContext context) {
     if (_showSplash) {
-      return const SplashScreen();
+      return const Scaffold(
+        backgroundColor: AppTheme.scaffoldBackgroundColor,
+        body: SplashScreen(),
+      );
     }
 
     return StreamBuilder<User?>(
@@ -265,7 +268,7 @@ class LiquidClipper extends CustomClipper<Path> {
   Path getClip(Size size) {
     final path = Path();
     final y = size.height * (1.0 - progress);
-    path.lineTo(0, y);
+    path.moveTo(0, y);
     path.lineTo(size.width, y);
     path.lineTo(size.width, size.height);
     path.lineTo(0, size.height);

@@ -426,17 +426,10 @@ class FirestoreService {
     if (user == null) return const Stream.empty();
 
     var query = _db.collection('messages');
-
     if (user.email == _adminEmail) {
-      // Use Filter.or to support both specific UID and legacy null values (for admin)
-      // Note: Firestore 'whereIn' does not support null values, so Filter.or is used as an alternative.
-      return query
-          .where(Filter.or(
-            Filter('targetUserId', isEqualTo: user.uid),
-            Filter('targetUserId', isNull: true),
-          ))
-          .orderBy('timestamp', descending: true)
-          .snapshots();
+      // For Admin: fetch all messages to avoid the null-in-filter buggy assertion.
+      // We rely on Firestore rules or light traffic for this specific personal app.
+      return query.orderBy('timestamp', descending: true).snapshots();
     }
     return query
         .where('targetUserId', isEqualTo: user.uid)
@@ -448,20 +441,21 @@ class FirestoreService {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return Stream.value(0);
 
-    Query query =
-        _db.collection('messages').where('status', isEqualTo: 'unread');
-
     if (user.email == _adminEmail) {
-      // Use Filter.or to support both specific UID and legacy null values (for admin)
-      query = query.where(Filter.or(
-        Filter('targetUserId', isEqualTo: user.uid),
-        Filter('targetUserId', isNull: true),
-      ));
+      // Return count of all unread for admin
+      return _db
+          .collection('messages')
+          .where('status', isEqualTo: 'unread')
+          .snapshots()
+          .map((snap) => snap.docs.length);
     } else {
-      query = query.where('targetUserId', isEqualTo: user.uid);
+      return _db
+          .collection('messages')
+          .where('status', isEqualTo: 'unread')
+          .where('targetUserId', isEqualTo: user.uid)
+          .snapshots()
+          .map((snap) => snap.docs.length);
     }
-
-    return query.snapshots().map((snap) => snap.docs.length);
   }
 
   Future<void> resetUrlSettings() async {

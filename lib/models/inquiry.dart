@@ -8,6 +8,7 @@ class Inquiry {
   final String message;
   final String status;
   final DateTime timestamp;
+  final String? targetUserId;
 
   Inquiry({
     required this.id,
@@ -17,6 +18,7 @@ class Inquiry {
     required this.message,
     required this.status,
     required this.timestamp,
+    this.targetUserId,
   });
 
   factory Inquiry.fromFirestore(DocumentSnapshot doc) {
@@ -29,6 +31,7 @@ class Inquiry {
       message: data['message'] ?? '',
       status: data['status'] ?? 'unread',
       timestamp: (data['timestamp'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      targetUserId: data['targetUserId'],
     );
   }
 
@@ -40,6 +43,7 @@ class Inquiry {
       'message': message,
       'status': status,
       'timestamp': Timestamp.fromDate(timestamp),
+      'targetUserId': targetUserId,
     };
   }
 }
