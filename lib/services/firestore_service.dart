@@ -426,11 +426,7 @@ class FirestoreService {
     if (user == null) return const Stream.empty();
 
     var query = _db.collection('messages');
-    if (user.email == _adminEmail) {
-      // For Admin: fetch all messages to avoid the null-in-filter buggy assertion.
-      // We rely on Firestore rules or light traffic for this specific personal app.
-      return query.orderBy('timestamp', descending: true).snapshots();
-    }
+    // Remove Admin "See All" View - Admin should only see their own portfolio messages
     return query
         .where('targetUserId', isEqualTo: user.uid)
         .orderBy('timestamp', descending: true)
@@ -441,21 +437,12 @@ class FirestoreService {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return Stream.value(0);
 
-    if (user.email == _adminEmail) {
-      // Return count of all unread for admin
-      return _db
-          .collection('messages')
-          .where('status', isEqualTo: 'unread')
-          .snapshots()
-          .map((snap) => snap.docs.length);
-    } else {
-      return _db
-          .collection('messages')
-          .where('status', isEqualTo: 'unread')
-          .where('targetUserId', isEqualTo: user.uid)
-          .snapshots()
-          .map((snap) => snap.docs.length);
-    }
+    return _db
+        .collection('messages')
+        .where('status', isEqualTo: 'unread')
+        .where('targetUserId', isEqualTo: user.uid)
+        .snapshots()
+        .map((snap) => snap.docs.length);
   }
 
   Future<void> resetUrlSettings() async {
