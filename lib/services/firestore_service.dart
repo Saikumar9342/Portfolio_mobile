@@ -520,9 +520,21 @@ class FirestoreService {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
 
-    await _db.collection('users').doc(user.uid).set({
-      'fcmToken': token,
+    // Save to private sub-collection for security
+    await _db
+        .collection('users')
+        .doc(user.uid)
+        .collection('private')
+        .doc('fcm')
+        .set({
+      'tokens': FieldValue.arrayUnion([token]),
       'lastTokenUpdate': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));
+
+    // Cleanup: Remove from user doc if it was there (Legacy migration)
+    await _db.collection('users').doc(user.uid).update({
+      'fcmToken': FieldValue.delete(),
+      'fcmTokens': FieldValue.delete(),
+    }).catchError((_) {});
   }
 }

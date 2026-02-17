@@ -15,6 +15,8 @@ import '../services/firestore_service.dart';
 import '../widgets/brand_logo.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../services/notification_service.dart';
+import 'dart:async';
+import 'package:flutter_app_badger/flutter_app_badger.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -27,6 +29,7 @@ class _HomeScreenState extends State<HomeScreen> {
   final ScrollController _scrollController = ScrollController();
   final FirestoreService _service = FirestoreService();
   bool _showTitle = false;
+  StreamSubscription<int>? _badgeSubscription;
 
   @override
   void initState() {
@@ -34,6 +37,25 @@ class _HomeScreenState extends State<HomeScreen> {
     _scrollController.addListener(_onScroll);
     _service.ensureUserProfile();
     _saveFcmToken();
+    _initBadgeListener();
+  }
+
+  void _initBadgeListener() {
+    _badgeSubscription =
+        _service.streamUnreadMessagesCount().listen((count) async {
+      try {
+        final isSupported = await FlutterAppBadger.isAppBadgeSupported();
+        if (isSupported) {
+          if (count > 0) {
+            FlutterAppBadger.updateBadgeCount(count);
+          } else {
+            FlutterAppBadger.removeBadge();
+          }
+        }
+      } catch (e) {
+        debugPrint("Error updating badge: $e");
+      }
+    });
   }
 
   Future<void> _saveFcmToken() async {
@@ -50,6 +72,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   void dispose() {
+    _badgeSubscription?.cancel();
     _scrollController.removeListener(_onScroll);
     _scrollController.dispose();
     super.dispose();

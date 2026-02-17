@@ -1,5 +1,7 @@
 import org.gradle.api.file.Directory
 import org.gradle.api.tasks.compile.JavaCompile
+import com.android.build.gradle.LibraryExtension
+import com.android.build.gradle.AppExtension
 
 buildscript {
     repositories {
@@ -34,6 +36,27 @@ subprojects {
         sourceCompatibility = JavaVersion.VERSION_17.toString()
         targetCompatibility = JavaVersion.VERSION_17.toString()
         options.compilerArgs.add("-Xlint:-options")
+    }
+
+    // Workaround for plugins with missing namespaces (AGP 8.0 requirement)
+    pluginManager.withPlugin("com.android.library") {
+        extensions.findByType<com.android.build.gradle.LibraryExtension>()?.let {
+            if (it.namespace == null) {
+                // Specific fix for flutter_app_badger which uses this specific package name
+                if (project.name == "flutter_app_badger") {
+                    it.namespace = "fr.g123k.flutterappbadge.flutterappbadger"
+                } else {
+                    it.namespace = "com.missing.namespace.${project.name.replace(":", ".").replace("-", ".")}"
+                }
+            }
+        }
+    }
+    pluginManager.withPlugin("com.android.application") {
+        extensions.findByType<com.android.build.gradle.AppExtension>()?.let {
+            if (it.namespace == null) {
+                it.namespace = "com.missing.namespace.${project.name.replace(":", ".").replace("-", ".")}"
+            }
+        }
     }
 }
 
