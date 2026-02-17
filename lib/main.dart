@@ -7,15 +7,26 @@ import 'screens/login_screen.dart';
 import 'theme/app_theme.dart';
 import 'widgets/brand_logo.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'services/notification_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  print("--- APP STARTING ---");
 
   try {
+    await Firebase.initializeApp(
+        options: DefaultFirebaseOptions.currentPlatform);
+    print("--- FIREBASE INITIALIZED ---");
+
+    // Initialize Notifications
+    final notificationService = NotificationService();
+    await notificationService.initialize();
+    print("--- NOTIFICATIONS INITIALIZED ---");
+
     await FirebaseAuth.instance.setLanguageCode('en');
-  } catch (e) {
-    debugPrint("Failed to set language code: $e");
+  } catch (e, stack) {
+    print("--- INIT ERROR: $e");
+    print(stack);
   }
 
   runApp(const MyApp());

@@ -515,4 +515,14 @@ class FirestoreService {
           SetOptions(merge: true));
     });
   }
+
+  Future<void> saveDeviceToken(String token) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    await _db.collection('users').doc(user.uid).set({
+      'fcmToken': token,
+      'lastTokenUpdate': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+  }
 }

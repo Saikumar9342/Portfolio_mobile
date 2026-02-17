@@ -14,6 +14,7 @@ import 'inquiries_screen.dart';
 import '../services/firestore_service.dart';
 import '../widgets/brand_logo.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../services/notification_service.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -32,6 +33,19 @@ class _HomeScreenState extends State<HomeScreen> {
     super.initState();
     _scrollController.addListener(_onScroll);
     _service.ensureUserProfile();
+    _saveFcmToken();
+  }
+
+  Future<void> _saveFcmToken() async {
+    try {
+      final ns = NotificationService();
+      String? token = await ns.getToken();
+      if (token != null) {
+        await _service.saveDeviceToken(token);
+      }
+    } catch (e) {
+      debugPrint("Error saving FCM token: $e");
+    }
   }
 
   @override
