@@ -425,10 +425,20 @@ class FirestoreService {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return const Stream.empty();
 
-    var query = _db.collection('messages');
-    // Remove Admin "See All" View - Admin should only see their own portfolio messages
-    return query
-        .where('targetUserId', isEqualTo: user.uid)
+    // ADMIN LOGIC: Listen to global 'messages' filtered by targetUserId
+    if (user.email == _adminEmail) {
+      return _db
+          .collection('messages')
+          .where('targetUserId', isEqualTo: user.uid)
+          .orderBy('timestamp', descending: true)
+          .snapshots();
+    }
+
+    // USER LOGIC: Listen to 'users/{uid}/messages'
+    return _db
+        .collection('users')
+        .doc(user.uid)
+        .collection('messages')
         .orderBy('timestamp', descending: true)
         .snapshots();
   }
@@ -437,10 +447,22 @@ class FirestoreService {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return Stream.value(0);
 
+    // ADMIN LOGIC
+    if (user.email == _adminEmail) {
+      return _db
+          .collection('messages')
+          .where('status', isEqualTo: 'unread')
+          .where('targetUserId', isEqualTo: user.uid)
+          .snapshots()
+          .map((snap) => snap.docs.length);
+    }
+
+    // USER LOGIC
     return _db
+        .collection('users')
+        .doc(user.uid)
         .collection('messages')
         .where('status', isEqualTo: 'unread')
-        .where('targetUserId', isEqualTo: user.uid)
         .snapshots()
         .map((snap) => snap.docs.length);
   }
