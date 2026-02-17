@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../services/cloudinary_service.dart';
 import '../services/firestore_service.dart';
+import '../services/sound_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/custom_text_field.dart';
 import '../widgets/primary_button.dart';
@@ -353,6 +354,7 @@ class _ContentEditorScreenState extends State<ContentEditorScreen> {
           }
         } catch (e) {
           hasError = true;
+          SoundService.playError();
           ActionDialog.show(
             context,
             title: "Format Error",
@@ -373,6 +375,7 @@ class _ContentEditorScreenState extends State<ContentEditorScreen> {
             languageCode: widget.languageCode);
         if (mounted) {
           setState(() => _isDirty = false);
+          SoundService.playSuccess();
           ActionDialog.show(
             context,
             title: "Success",
@@ -382,6 +385,7 @@ class _ContentEditorScreenState extends State<ContentEditorScreen> {
         }
       } catch (e) {
         if (mounted) {
+          SoundService.playError();
           showDialog(
             context: context,
             builder: (context) => AlertDialog(

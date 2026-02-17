@@ -15,6 +15,7 @@ import '../services/firestore_service.dart';
 import '../widgets/brand_logo.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../services/notification_service.dart';
+import '../services/sound_service.dart';
 import 'dart:async';
 import 'package:flutter_app_badger/flutter_app_badger.dart';
 
@@ -767,7 +768,10 @@ class _BouncyState extends State<_Bouncy> with SingleTickerProviderStateMixin {
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTapDown: (_) => _controller.forward(),
+      onTapDown: (_) {
+        _controller.forward();
+        SoundService.playClick();
+      },
       onTapUp: (_) => _controller.reverse(),
       onTapCancel: () => _controller.reverse(),
       child: ScaleTransition(

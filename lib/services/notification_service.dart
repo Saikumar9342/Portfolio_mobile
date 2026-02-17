@@ -63,6 +63,8 @@ class NotificationService {
       description:
           'This channel is used for important notifications.', // description
       importance: Importance.max,
+      playSound: true,
+      enableVibration: true,
     );
 
     await _flutterLocalNotificationsPlugin
@@ -93,6 +95,8 @@ class NotificationService {
       'High Importance Notifications', // title
       importance: Importance.max,
       priority: Priority.high,
+      playSound: true,
+      enableVibration: true,
     );
 
     const NotificationDetails platformChannelSpecifics =
@@ -113,6 +117,8 @@ class NotificationService {
       'High Importance Notifications', // title
       importance: Importance.max,
       priority: Priority.high,
+      playSound: true,
+      enableVibration: true,
     );
 
     const NotificationDetails platformChannelSpecifics =
