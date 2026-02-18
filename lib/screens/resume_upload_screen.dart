@@ -25,8 +25,8 @@ class ResumeUploadScreen extends StatefulWidget {
 }
 
 class _ResumeUploadScreenState extends State<ResumeUploadScreen> {
-  // Gemini API Key
-  static final String _geminiApiKey = dotenv.env['GEMINI_API_KEY'] ?? "";
+  // Gemini API Key — read lazily so dotenv is already loaded
+  static String get _geminiApiKey => dotenv.env['GEMINI_API_KEY'] ?? "";
   bool _isLoading = false;
   bool _isParsing = false;
   String _statusMessage = "";

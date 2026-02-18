@@ -14,7 +14,7 @@ class GeminiResumeParser implements ResumeParserService {
   final String apiKey;
 
   // Prioritized list of models to try for seamless failover
-  final List<String> _modelPriority = [
+  static const List<String> _modelPriority = [
     'gemini-2.5-flash',
     'gemini-flash-latest',
     'gemini-1.5-flash',
@@ -29,7 +29,8 @@ class GeminiResumeParser implements ResumeParserService {
 
   @override
   Future<ResumeData> parseResume(String text) async {
-    Object? lastError;
+    Object lastError =
+        Exception("All AI models (Gemini & Groq) failed to parse the resume.");
 
     // 1. Try Gemini Models (Primary)
     for (final modelName in _modelPriority) {
