@@ -184,6 +184,9 @@ class Project {
   String id;
   String title;
   String description;
+  String fullDescription;
+  String role;
+  String category;
   List<String> techStack;
   String imageUrl;
   String liveLink;
@@ -194,6 +197,9 @@ class Project {
     required this.id,
     required this.title,
     required this.description,
+    this.fullDescription = '',
+    this.role = '',
+    this.category = '',
     required this.techStack,
     required this.imageUrl,
     required this.liveLink,
@@ -206,6 +212,9 @@ class Project {
       id: id,
       title: map['title'] ?? '',
       description: map['description'] ?? '',
+      fullDescription: map['fullDescription'] ?? '',
+      role: map['role'] ?? '',
+      category: map['category'] ?? '',
       techStack: List<String>.from(map['techStack'] ?? []),
       imageUrl: map['imageUrl'] ?? '',
       liveLink: map['liveLink'] ?? '',
@@ -220,6 +229,9 @@ class Project {
     return {
       'title': title,
       'description': description,
+      'fullDescription': fullDescription,
+      'role': role,
+      'category': category,
       'techStack': techStack,
       'imageUrl': imageUrl,
       'liveLink': liveLink,

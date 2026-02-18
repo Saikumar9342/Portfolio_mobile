@@ -82,10 +82,18 @@ class _ResumeUploadScreenState extends State<ResumeUploadScreen> {
 
       // 2. Send to AI
       setState(() {
-        _statusMessage = "Analyzing document...";
+        _statusMessage = "Phase 1: Studying your profile...";
       });
 
       final parser = GeminiResumeParser(apiKey: _geminiApiKey);
+
+      // Update message mid-way (approximate — actual phase change is in the service)
+      Future.delayed(const Duration(seconds: 6), () {
+        if (mounted && _isParsing) {
+          setState(
+              () => _statusMessage = "Phase 2: Extracting portfolio data...");
+        }
+      });
       final data = await parser.parseResume(text);
 
       setState(() {
@@ -116,7 +124,7 @@ class _ResumeUploadScreenState extends State<ResumeUploadScreen> {
       context,
       title: "Apply Changes?",
       message:
-          "This will upload your resume, overwrite existing About/Skills, and add new Projects. Proceed?",
+          "This will overwrite Hero, About, Skills, Expertise sections and add new Projects from your resume. Proceed?",
       confirmLabel: "APPLY ALL",
       type: ActionDialogType.warning,
       onConfirm: () {},
@@ -138,44 +146,62 @@ class _ResumeUploadScreenState extends State<ResumeUploadScreen> {
         pdfUrl = await CloudinaryService().uploadPdf(_selectedFile!.path);
       }
 
-      setState(() {
-        _statusMessage = "Saving data to Firestore...";
-      });
+      setState(() => _statusMessage = "Saving portfolio data...");
 
-      // 2. Update About (Bio, Education, Experience, ResumeURL)
+      // 2. Update Personal (name, role)
+      if (_parsedData!.name.isNotEmpty || _parsedData!.role.isNotEmpty) {
+        await firestore.updateContent('personal', {
+          if (_parsedData!.name.isNotEmpty) 'name': _parsedData!.name,
+          if (_parsedData!.role.isNotEmpty) 'role': _parsedData!.role,
+        });
+      }
+
+      // 3. Update Hero section
+      if (_parsedData!.hero.isNotEmpty) {
+        await firestore.updateContent('hero', _parsedData!.hero);
+      }
+
+      // 4. Update About (Bio, Location, Education, Experience, ResumeURL)
       Map<String, dynamic> aboutData = {
-        'biography': _parsedData!.summary,
-        'location': _parsedData!.location,
+        if (_parsedData!.summary.isNotEmpty) 'biography': _parsedData!.summary,
+        if (_parsedData!.location.isNotEmpty) 'location': _parsedData!.location,
         'education': _parsedData!.education.map((e) => e.toMap()).toList(),
         'experience': _parsedData!.experience.map((e) => e.toMap()).toList(),
-        'title': "About Me",
       };
-
+      // Merge with AI's about map (interests, etc.)
+      if (_parsedData!.about.isNotEmpty) {
+        aboutData.addAll(_parsedData!.about);
+      }
       if (pdfUrl != null) {
         aboutData['resumeUrl'] = pdfUrl;
       }
-
       await firestore.updateContent('about', aboutData);
 
-      // 3. Update Skills (Flatten the map)
-      Map<String, dynamic> skillsUpdate = {};
-      _parsedData!.skills.forEach((category, items) {
-        skillsUpdate[category] = items;
-      });
-      if (skillsUpdate.isNotEmpty) {
-        await firestore.updateContent('skills', skillsUpdate);
+      // 5. Update Expertise (stats, services, title)
+      if (_parsedData!.expertise.isNotEmpty) {
+        await firestore.updateContent('expertise', _parsedData!.expertise);
       }
 
-      // 4. Add Projects
+      // 6. Update Skills — save the full map directly (includes titles + proficiency levels)
+      if (_parsedData!.skills.isNotEmpty) {
+        await firestore.updateContent('skills', _parsedData!.skills);
+      }
+
+      // 7. Update Contact info
+      Map<String, dynamic> contactData = {};
+      if (_parsedData!.email.isNotEmpty) {
+        contactData['email'] = _parsedData!.email;
+      }
+      if (_parsedData!.personalEmail.isNotEmpty) {
+        contactData['personalEmail'] = _parsedData!.personalEmail;
+      }
+      if (contactData.isNotEmpty) {
+        await firestore.updateContent('contact', contactData);
+      }
+
+      // 8. Add Projects (with full details)
       for (var project in _parsedData!.projects) {
         await firestore.addProject(project.toMap());
-      }
-
-      // 5. Update Contact info in 'contact' section
-      if (_parsedData!.email.isNotEmpty) {
-        await firestore.updateContent('contact', {
-          'email': _parsedData!.email,
-        });
       }
 
       if (mounted) {
@@ -189,7 +215,8 @@ class _ResumeUploadScreenState extends State<ResumeUploadScreen> {
         ActionDialog.show(
           context,
           title: "Success! 🚀",
-          message: "Resume uploaded and portfolio updated successfully.",
+          message:
+              "Resume uploaded! Hero, About, Skills, Expertise & Projects all updated.",
           onConfirm: () => Navigator.pop(context),
         );
       }
