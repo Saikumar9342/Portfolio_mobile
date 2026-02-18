@@ -95,24 +95,32 @@ class _InquiriesScreenState extends State<InquiriesScreen> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.mark_email_read_outlined,
-              size: 80, color: AppTheme.textSecondary.withValues(alpha: 0.2)),
+          Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: AppTheme.primaryColor.withValues(alpha: 0.05),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(Icons.inbox_rounded,
+                size: 48, color: AppTheme.primaryColor.withValues(alpha: 0.5)),
+          ),
           const SizedBox(height: 24),
           Text(
-            "No messages yet",
+            "NO PENDING INQUIRIES",
             style: GoogleFonts.outfit(
-              fontSize: 20,
+              fontSize: 16,
               fontWeight: FontWeight.bold,
-              color: AppTheme.textSecondary,
+              color: AppTheme.textPrimary.withValues(alpha: 0.8),
+              letterSpacing: 2,
             ),
           ),
           const SizedBox(height: 8),
           Text(
-            "Your leads will appear here when\nsomeone contacts you via your portfolio.",
+            "New leads and messages will appear here.",
             textAlign: TextAlign.center,
             style: GoogleFonts.inter(
-              fontSize: 14,
-              color: AppTheme.textSecondary.withValues(alpha: 0.6),
+              fontSize: 13,
+              color: AppTheme.textSecondary.withValues(alpha: 0.5),
             ),
           ),
         ],
@@ -166,19 +174,15 @@ class _InquiriesScreenState extends State<InquiriesScreen> {
   void _replyViaEmail(Inquiry inquiry) async {
     final String firstName = inquiry.name.split(' ').first;
     final String body = "Hi $firstName,\n\n"
-        "[ Write your response here ]\n\n"
+        "\n\n"
         "Best regards,\n"
-        "Saikumar\n\n"
-        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-        "  � REFERENCE INFORMATION\n"
-        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
-        "👤 FROM:      ${inquiry.name.toUpperCase()}\n"
-        "📧 EMAIL:     ${inquiry.email}\n"
-        "📅 RECEIVED:  ${DateFormat('MMM dd, yyyy - hh:mm a').format(inquiry.timestamp)}\n\n"
-        "📝 ORIGINAL MESSAGE:\n"
-        "\"${inquiry.message}\"\n\n"
-        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-        "Sent via Portfolio Admin Dashboard";
+        "Saikumar Pasumarthi\n"
+        "Anthrix\n\n"
+        "--\n"
+        "Response to inquiry via Portfolio Mobile:\n"
+        "From: ${inquiry.name} (${inquiry.email})\n"
+        "Date: ${DateFormat('MMM dd, yyyy - hh:mm a').format(inquiry.timestamp)}\n\n"
+        "> ${inquiry.message.replaceAll('\n', '\n> ')}";
 
     final Uri emailLaunchUri = Uri(
       scheme: 'mailto',
