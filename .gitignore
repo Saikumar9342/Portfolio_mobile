@@ -41,3 +41,20 @@ android/app/build/
 android/app/debug/
 android/app/profile/
 android/app/release/
+
+# ─── SECRETS — NEVER COMMIT THESE ───────────────────────────────────────────
+# Environment variables and API keys
+.env
+.env.*
+*.env
+.env.local
+.env.production
+.env.development
+
+# Key files
+*.key
+*.pem
+*.p12
+*.keystore
+google-services.json
+GoogleService-Info.plist
