@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:google_generative_ai/google_generative_ai.dart';
 import 'package:http/http.dart' as http;
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import '../models/resume_data.dart';
 import '../models/portfolio_data.dart';
 
@@ -53,11 +54,7 @@ class GeminiResumeParser implements ResumeParserService {
     }
 
     // If all fail, throw the last error
-    if (lastError != null) {
-      throw lastError;
-    }
-    throw Exception(
-        "All AI models (Gemini & Groq) failed to parse the resume.");
+    throw lastError;
   }
 
   Future<ResumeData> _parseWithModel(String text, String modelName) async {
