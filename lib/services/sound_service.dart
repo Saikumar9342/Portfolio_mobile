@@ -1,10 +1,7 @@
 import 'package:flutter/services.dart';
 import 'package:flutter/foundation.dart';
-import 'package:audioplayers/audioplayers.dart';
 
 class SoundService {
-  static final AudioPlayer _player = AudioPlayer();
-
   // Basic Click Sound (System)
   static Future<void> playClick() async {
     await SystemSound.play(SystemSoundType.click);

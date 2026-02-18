@@ -537,4 +537,28 @@ class FirestoreService {
       'fcmTokens': FieldValue.delete(),
     }).catchError((_) {});
   }
+
+  // --- Message Management ---
+
+  DocumentReference<Map<String, dynamic>> _getMessageDoc(String messageId) {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) throw Exception("User not authenticated");
+
+    if (user.email == _adminEmail) {
+      return _db.collection('messages').doc(messageId);
+    }
+    return _db
+        .collection('users')
+        .doc(user.uid)
+        .collection('messages')
+        .doc(messageId);
+  }
+
+  Future<void> markMessageAsRead(String messageId) {
+    return _getMessageDoc(messageId).update({'status': 'read'});
+  }
+
+  Future<void> deleteMessage(String messageId) {
+    return _getMessageDoc(messageId).delete();
+  }
 }

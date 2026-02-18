@@ -7,7 +7,7 @@ import 'package:flutter/foundation.dart';
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   await Firebase.initializeApp();
-  print("Handling a background message: ${message.messageId}");
+  debugPrint("Handling a background message: ${message.messageId}");
 }
 
 class NotificationService {
@@ -24,9 +24,9 @@ class NotificationService {
     );
 
     if (settings.authorizationStatus == AuthorizationStatus.authorized) {
-      print('User granted permission');
+      debugPrint('User granted permission');
     } else {
-      print('User declined or has not accepted permission');
+      debugPrint('User declined or has not accepted permission');
       return;
     }
 
@@ -74,11 +74,12 @@ class NotificationService {
 
     // 4. Listen to Foreground Messages
     FirebaseMessaging.onMessage.listen((RemoteMessage message) {
-      print('Got a message whilst in the foreground!');
-      print('Message data: ${message.data}');
+      debugPrint('Got a message whilst in the foreground!');
+      debugPrint('Message data: ${message.data}');
 
       if (message.notification != null) {
-        print('Message also contained a notification: ${message.notification}');
+        debugPrint(
+            'Message also contained a notification: ${message.notification}');
         _showLocalNotification(message);
       } else if (message.data.containsKey('title') ||
           message.data.containsKey('body')) {
@@ -135,10 +136,10 @@ class NotificationService {
   Future<String?> getToken() async {
     try {
       String? token = await _firebaseMessaging.getToken();
-      print("FCM Token: $token");
+      debugPrint("FCM Token: $token");
       return token;
     } catch (e) {
-      print("Error getting FCM token: $e");
+      debugPrint("Error getting FCM token: $e");
       return null;
     }
   }

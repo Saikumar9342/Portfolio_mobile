@@ -160,7 +160,7 @@ class _InquiriesScreenState extends State<InquiriesScreen> {
   }
 
   void _deleteInquiry(Inquiry inquiry) {
-    FirebaseFirestore.instance.collection('messages').doc(inquiry.id).delete();
+    _service.deleteMessage(inquiry.id);
   }
 
   void _replyViaEmail(Inquiry inquiry) async {
@@ -363,10 +363,7 @@ class _InquiryCard extends StatelessWidget {
 
   void _showDetail(BuildContext context) {
     if (inquiry.status == 'unread') {
-      FirebaseFirestore.instance
-          .collection('messages')
-          .doc(inquiry.id)
-          .update({'status': 'read'});
+      FirestoreService().markMessageAsRead(inquiry.id);
     }
 
     showModalBottomSheet(

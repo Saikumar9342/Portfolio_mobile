@@ -8,25 +8,31 @@ import 'theme/app_theme.dart';
 import 'widgets/brand_logo.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'services/notification_service.dart';
+import 'package:firebase_analytics/firebase_analytics.dart';
+import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  print("--- APP STARTING ---");
+  debugPrint("--- APP STARTING ---");
 
   try {
     await Firebase.initializeApp(
         options: DefaultFirebaseOptions.currentPlatform);
-    print("--- FIREBASE INITIALIZED ---");
+    debugPrint("--- FIREBASE INITIALIZED ---");
+
+    // Initialize Analytics and Crashlytics
+    await FirebaseAnalytics.instance.logAppOpen();
+    FlutterError.onError = FirebaseCrashlytics.instance.recordFlutterError;
 
     // Initialize Notifications
     final notificationService = NotificationService();
     await notificationService.initialize();
-    print("--- NOTIFICATIONS INITIALIZED ---");
+    debugPrint("--- NOTIFICATIONS INITIALIZED ---");
 
     await FirebaseAuth.instance.setLanguageCode('en');
   } catch (e, stack) {
-    print("--- INIT ERROR: $e");
-    print(stack);
+    debugPrint("--- INIT ERROR: $e");
+    debugPrint(stack.toString());
   }
 
   runApp(const MyApp());
@@ -188,9 +194,9 @@ class _SplashScreenState extends State<SplashScreen>
                           alignment: Alignment.center,
                           children: [
                             // Shadow / Background Silhouette
-                            Opacity(
+                            const Opacity(
                               opacity: 0.1,
-                              child: const BrandLogo(size: 150),
+                              child: BrandLogo(size: 150),
                             ),
 
                             // Liquid Filling Reveal
