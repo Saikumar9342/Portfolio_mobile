@@ -33,6 +33,9 @@ dependencies:
   audioplayers: ^5.2.1
   firebase_analytics: ^10.10.7
   firebase_crashlytics: ^3.4.19
+  google_generative_ai: ^0.4.6
+  shared_preferences: ^2.2.2
+  flutter_dotenv: ^5.1.0
 
 dev_dependencies:
   flutter_test:
@@ -44,3 +47,4 @@ flutter:
   assets:
     - assets/images/brand_logo.png
     - assets/images/brand_logo.svg
+    - .env

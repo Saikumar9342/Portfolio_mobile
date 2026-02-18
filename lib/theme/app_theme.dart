@@ -11,6 +11,7 @@ class AppTheme {
   static const Color textPrimary = Color(0xFFF5F5F7); // Whiteish
   static const Color textSecondary = Color(0xFFAAAAAA); // Grey
   static const Color errorColor = Color(0xFFE57373); // Muted Red
+  static const Color successColor = Color(0xFF66BB6A); // Soft Green
 
   // Atomiq / Atom Brand compatibility aliases (if needed by code)
   static const Color accentColor = primaryColor;

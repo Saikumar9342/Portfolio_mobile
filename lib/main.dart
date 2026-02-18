@@ -10,9 +10,11 @@ import 'package:google_fonts/google_fonts.dart';
 import 'services/notification_service.dart';
 import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await dotenv.load(fileName: ".env");
   debugPrint("--- APP STARTING ---");
 
   try {

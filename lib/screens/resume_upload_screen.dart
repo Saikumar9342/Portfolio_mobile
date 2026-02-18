@@ -1,15 +1,21 @@
 import 'dart:io';
+
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
-import 'package:syncfusion_flutter_pdf/pdf.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+
+import 'package:syncfusion_flutter_pdf/pdf.dart';
+
+import '../models/resume_data.dart';
 import '../services/firestore_service.dart';
+import '../services/resume_parser_service.dart';
+
 import '../services/cloudinary_service.dart';
 import '../theme/app_theme.dart';
-import '../widgets/primary_button.dart';
-import '../widgets/gradient_card.dart';
-import '../widgets/custom_text_field.dart';
 import '../widgets/action_dialog.dart';
+
+import '../widgets/primary_button.dart';
 
 class ResumeUploadScreen extends StatefulWidget {
   const ResumeUploadScreen({super.key});
@@ -19,1244 +25,403 @@ class ResumeUploadScreen extends StatefulWidget {
 }
 
 class _ResumeUploadScreenState extends State<ResumeUploadScreen> {
+  // Gemini API Key
+  static final String _geminiApiKey = dotenv.env['GEMINI_API_KEY'] ?? "";
   bool _isLoading = false;
-  String _status = '';
-  final FirestoreService _firestoreService = FirestoreService();
+  bool _isParsing = false;
+  String _statusMessage = "";
+  ResumeData? _parsedData;
+  File? _selectedFile;
 
-  List<Map<String, dynamic>> _extractedProjects = [];
-  Map<String, dynamic> _extractedProfile = {};
-  bool _hasParsed = false;
-  String? _pickedFilePath;
-
-  Future<void> _pickAndParseResume() async {
-    setState(() {
-      _isLoading = true;
-      _status = 'Selecting PDF...';
-    });
-
+  Future<void> _pickResume() async {
     try {
       FilePickerResult? result = await FilePicker.platform.pickFiles(
         type: FileType.custom,
         allowedExtensions: ['pdf'],
       );
 
-      if (result != null) {
-        String path = result.files.single.path!;
-        _pickedFilePath = path;
-        setState(() => _status = 'Reading PDF Content...');
-        final String text = await _extractTextFromPdf(path);
-
-        setState(() => _status = 'Analyzing Experience...');
-        _analyzeData(text);
-
+      if (result != null && result.files.single.path != null) {
         setState(() {
-          _isLoading = false;
-          _hasParsed = true;
-        });
-      } else {
-        _pickedFilePath = null;
-        setState(() {
-          _status = '';
-          _isLoading = false;
+          _selectedFile = File(result.files.single.path!);
+          _parsedData = null; // Reset previous parse
         });
       }
     } catch (e) {
+      debugPrint("Error picking file: $e");
       if (mounted) {
-        showDialog(
-          context: context,
-          builder: (context) => AlertDialog(
-            backgroundColor: AppTheme.surfaceColor,
-            title: Text('Error',
-                style: GoogleFonts.outfit(
-                    fontWeight: FontWeight.bold, color: Colors.white)),
-            content: Text(e.toString(),
-                style: GoogleFonts.inter(color: AppTheme.textSecondary)),
-            shape:
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('OK',
-                    style: TextStyle(color: AppTheme.primaryColor)),
-              ),
-            ],
-          ),
+        ActionDialog.show(
+          context,
+          title: "Error",
+          message: "Could not select file: $e",
+          type: ActionDialogType.danger,
+          onConfirm: () {},
         );
       }
-      setState(() {
-        _status = '';
-        _isLoading = false;
-      });
     }
   }
 
-  Future<String> _extractTextFromPdf(String path) async {
-    final PdfDocument document =
-        PdfDocument(inputBytes: File(path).readAsBytesSync());
-    String text = PdfTextExtractor(document).extractText();
-    document.dispose();
-    return text;
-  }
+  Future<void> _parseResume() async {
+    if (_selectedFile == null) return;
 
-  void _analyzeData(String text) {
-    // 1. Basic Info
-    final emailRegex = RegExp(r'\b[\w\.-]+@[\w\.-]+\.\w{2,4}\b');
-    final email = emailRegex.firstMatch(text)?.group(0) ?? '';
+    setState(() {
+      _isParsing = true;
+      _statusMessage = "Extracting text from PDF...";
+    });
 
-    final lines = text.split('\n').where((l) => l.trim().isNotEmpty).toList();
-    String name = lines.isNotEmpty ? lines.first.trim() : 'Unknown';
-    if (name.length > 50) name = name.substring(0, 50);
-
-    final knownSkills = [
-      'Flutter',
-      'React',
-      'React Native',
-      'Angular',
-      'Next.js',
-      'Node.js',
-      'Express.js',
-      'TypeScript',
-      'JavaScript',
-      'Dart',
-      'Firebase',
-      'Supabase',
-      'AWS',
-      'GCP',
-      'Azure',
-      'Python',
-      'Java',
-      'Kotlin',
-      'Swift',
-      'Spring Boot',
-      'Microservices',
-      'REST API',
-      'C++',
-      'SQL',
-      'NoSQL',
-      'Git',
-      'Docker',
-      'Kubernetes',
-      'Tailwind',
-      'MongoDB',
-      'PostgreSQL',
-      'MySQL',
-      'Redis',
-      'Apache'
-    ];
-
-    final foundSkills = knownSkills
-        .where((s) => text.toLowerCase().contains(s.toLowerCase()))
-        .toSet() // Unique
-        .toList();
-
-    String bio =
-        "Software Developer based in ${lines.length > 2 ? lines[2].split(',').last : 'World'}.";
-    // Improved Bio Regex
-    final bioMatch = RegExp(r'(?<=Profile|Summary\s)([\s\S]{50,300})(?=\n)',
-            caseSensitive: false)
-        .firstMatch(text);
-    if (bioMatch != null) {
-      bio = bioMatch.group(1)?.replaceAll('\n', ' ').trim() ?? bio;
-    }
-
-    final linkedinRegex =
-        RegExp(r'linkedin\.com/in/[\w-]+', caseSensitive: false);
-    final linkedin = linkedinRegex.firstMatch(text)?.group(0) ?? '';
-
-    final githubRegex = RegExp(r'github\.com/[\w-]+', caseSensitive: false);
-    final github = githubRegex.firstMatch(text)?.group(0) ?? '';
-
-    _extractedProfile = {
-      'name': name,
-      'email': email,
-      'bio': bio,
-      'skills': foundSkills,
-      'linkedin': linkedin.isNotEmpty ? "https://$linkedin" : "",
-      'github': github.isNotEmpty ? "https://$github" : "",
-    };
-
-    // 2. Projects
-    _extractedProjects = _extractProjects(text, knownSkills);
-  }
-
-  List<Map<String, dynamic>> _extractProjects(
-      String text, List<String> knownSkills) {
-    final cleanText = text
-        .replaceAll('\r\n', '\n')
-        .replaceAll('\r', '\n')
-        .replaceAll(RegExp(r'[ \t]+'), ' ')
-        .replaceAll(RegExp(r'\n{3,}'), '\n\n')
-        .trim();
-
-    final candidates = <Map<String, dynamic>>[];
-    candidates.addAll(
-        _extractProjectsFromTitleEnvironmentBlocks(cleanText, knownSkills));
-    candidates.addAll(
-        _extractProjectsFromLabeledProjectBlocks(cleanText, knownSkills));
-    candidates
-        .addAll(_extractProjectsFromProjectSections(cleanText, knownSkills));
-
-    final deduped = <String, Map<String, dynamic>>{};
-    for (final candidate in candidates) {
-      final title = (candidate['title'] as String? ?? '').trim();
-      if (title.isEmpty || _looksLikeSectionHeading(title)) continue;
-
-      final key = title.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), '');
-      if (key.isEmpty) continue;
-
-      final existing = deduped[key];
-      if (existing == null ||
-          _projectQualityScore(candidate) > _projectQualityScore(existing)) {
-        deduped[key] = candidate;
-      }
-    }
-
-    final projects = deduped.values.toList();
-    projects.sort(
-      (a, b) => _projectQualityScore(b).compareTo(_projectQualityScore(a)),
-    );
-    return projects.take(12).toList();
-  }
-
-  List<Map<String, dynamic>> _extractProjectsFromTitleEnvironmentBlocks(
-      String cleanText, List<String> knownSkills) {
-    final projects = <Map<String, dynamic>>[];
-    final projectRegex = RegExp(
-      r'Title:\s*([\s\S]+?)\s*Environment:\s*([\s\S]+?)\s*Description:\s*([\s\S]+?)(?=Roles and Responsibilities:|Title:|(?:\n\s*[A-Z][A-Z &/]{3,}\n)|$)',
-      caseSensitive: false,
-    );
-
-    for (final match in projectRegex.allMatches(cleanText)) {
-      final block = match.group(0) ?? '';
-      final title = _sanitizeTitle(match.group(1) ?? '');
-      if (title.isEmpty) continue;
-
-      final environment = _cleanNarrativeText(match.group(2) ?? '');
-      final fullDescription = _cleanNarrativeText(match.group(3) ?? '');
-      if (fullDescription.length < 20) continue;
-
-      projects.add(_toProjectMap(
-        title: title,
-        role: _extractRole(block),
-        description: _buildShortDescription(fullDescription),
-        fullDescription: fullDescription,
-        techStack: _extractTechStack('$environment\n$block', knownSkills),
-        category: _detectProjectCategory(block),
-      ));
-    }
-
-    return projects;
-  }
-
-  List<Map<String, dynamic>> _extractProjectsFromLabeledProjectBlocks(
-      String cleanText, List<String> knownSkills) {
-    final projects = <Map<String, dynamic>>[];
-    final projectRegex = RegExp(
-      r'(?:^|\n)\s*(?:Project(?:\s*Name)?|Project Title|Title)\s*[:\-]\s*([^\n]{3,100})\n([\s\S]{30,900}?)(?=(?:\n\s*(?:Project(?:\s*Name)?|Project Title|Title)\s*[:\-])|(?:\n\s*[A-Z][A-Z &/]{3,}\n)|$)',
-      caseSensitive: false,
-      multiLine: true,
-    );
-
-    for (final match in projectRegex.allMatches(cleanText)) {
-      final title = _sanitizeTitle(match.group(1) ?? '');
-      if (title.isEmpty) continue;
-
-      final block = _cleanNarrativeText(match.group(2) ?? '');
-      if (block.length < 20) continue;
-
-      projects.add(_toProjectMap(
-        title: title,
-        role: _extractRole(block),
-        description: _buildShortDescription(block),
-        fullDescription: block,
-        techStack: _extractTechStack(block, knownSkills),
-        category: _detectProjectCategory(block),
-      ));
-    }
-
-    return projects;
-  }
-
-  List<Map<String, dynamic>> _extractProjectsFromProjectSections(
-      String cleanText, List<String> knownSkills) {
-    final projects = <Map<String, dynamic>>[];
-    final sectionRegex = RegExp(
-      r'(?:^|\n)\s*(?:PROJECTS?|SELECTED PROJECTS?|KEY PROJECTS?|PROJECT EXPERIENCE|ACADEMIC PROJECTS?)\s*:?\s*\n([\s\S]{60,2600}?)(?=(?:\n\s*(?:EXPERIENCE|WORK EXPERIENCE|PROFESSIONAL EXPERIENCE|EDUCATION|SKILLS|CERTIFICATIONS|ACHIEVEMENTS|LANGUAGES|INTERESTS|CONTACT)\s*:?\s*\n)|$)',
-      caseSensitive: false,
-      multiLine: true,
-    );
-
-    for (final section in sectionRegex.allMatches(cleanText)) {
-      final sectionBody = section.group(1) ?? '';
-      for (final block in _splitProjectBlocks(sectionBody)) {
-        final title = _extractTitleFromBlock(block);
-        if (title.isEmpty) continue;
-
-        final fullDescription = _extractDescriptionFromBlock(block);
-        if (fullDescription.length < 20) continue;
-
-        projects.add(_toProjectMap(
-          title: title,
-          role: _extractRole(block),
-          description: _buildShortDescription(fullDescription),
-          fullDescription: fullDescription,
-          techStack: _extractTechStack(block, knownSkills),
-          category: _detectProjectCategory(block),
-        ));
-      }
-    }
-
-    return projects;
-  }
-
-  List<String> _splitProjectBlocks(String sectionText) {
-    final normalized = sectionText.replaceAll(RegExp(r'\n{3,}'), '\n\n').trim();
-    if (normalized.isEmpty) return [];
-
-    final blankBlocks = normalized
-        .split(RegExp(r'\n\s*\n'))
-        .map((block) => block.trim())
-        .where((block) => block.length > 30)
-        .toList();
-    if (blankBlocks.length > 1) return blankBlocks;
-
-    return normalized
-        .split(RegExp(r'(?=\n\s*(?:[-*]|\d+[\).]))'))
-        .map((block) => block.trim())
-        .where((block) => block.length > 30)
-        .toList();
-  }
-
-  String _extractTitleFromBlock(String block) {
-    final lines = block
-        .split('\n')
-        .map((line) => line.trim())
-        .where((line) => line.isNotEmpty)
-        .toList();
-    if (lines.isEmpty) return '';
-
-    var firstLine = lines.first
-        .replaceFirst(RegExp(r'^[-*]\s*'), '')
-        .replaceFirst(RegExp(r'^\d+[\).]\s*'), '')
-        .trim();
-
-    final labeledTitle = RegExp(
-      r'^(?:project(?:\s*name)?|project title|title)\s*[:\-]\s*(.+)$',
-      caseSensitive: false,
-    ).firstMatch(firstLine);
-
-    if (labeledTitle != null) {
-      return _sanitizeTitle(labeledTitle.group(1) ?? '');
-    }
-
-    firstLine = firstLine.split(RegExp(r'\s+\|\s+|\s+-\s+')).first.trim();
-    return _sanitizeTitle(firstLine);
-  }
-
-  String _extractDescriptionFromBlock(String block) {
-    final lines = block
-        .split('\n')
-        .map((line) => line.trim())
-        .where((line) => line.isNotEmpty)
-        .toList();
-    if (lines.isEmpty) return '';
-
-    final bodyLines = lines.skip(1).where((line) {
-      return !RegExp(
-        r'^(?:project(?:\s*name)?|project title|title|role|position|duration|client|team|environment|technology|tech stack|tools?|stack)\s*[:\-]',
-        caseSensitive: false,
-      ).hasMatch(line);
-    }).toList();
-
-    final body = bodyLines.isNotEmpty ? bodyLines.join(' ') : lines.join(' ');
-    return _cleanNarrativeText(body);
-  }
-
-  List<String> _extractTechStack(String block, List<String> knownSkills) {
-    final collected = <String>[];
-
-    final labeledMatches = RegExp(
-      r'(?:Environment|Technology|Tech Stack|Tools?|Stack)\s*[:\-]\s*([^\n]+)',
-      caseSensitive: false,
-    ).allMatches(block);
-
-    for (final match in labeledMatches) {
-      final raw = match.group(1) ?? '';
-      final parts = raw.split(RegExp(r'[,/|]'));
-      for (final token in parts) {
-        final value = token.trim();
-        if (_isValidTechToken(value)) collected.add(value);
-      }
-    }
-
-    final lowerBlock = block.toLowerCase();
-    for (final skill in knownSkills) {
-      if (lowerBlock.contains(skill.toLowerCase())) {
-        collected.add(skill);
-      }
-    }
-
-    final unique = <String>[];
-    final seen = <String>{};
-    for (final item in collected) {
-      final key = item.toLowerCase();
-      if (seen.contains(key)) continue;
-      seen.add(key);
-      unique.add(item);
-    }
-
-    if (unique.isEmpty) unique.add('Engineering');
-    return unique.take(8).toList();
-  }
-
-  bool _isValidTechToken(String value) {
-    if (value.isEmpty || value.length > 30) return false;
-    if (RegExp(r'^(and|with|using|for)$', caseSensitive: false)
-        .hasMatch(value)) {
-      return false;
-    }
-    return RegExp(r'^[a-zA-Z0-9.+# -]+$').hasMatch(value);
-  }
-
-  String _extractRole(String block) {
-    final roleMatch = RegExp(
-      r'(?:Role|Position)\s*[:\-]\s*([^\n,|]+)',
-      caseSensitive: false,
-    ).firstMatch(block);
-    if (roleMatch != null) {
-      final role = _cleanNarrativeText(roleMatch.group(1) ?? '');
-      if (role.isNotEmpty) return role;
-    }
-    return 'Software Engineer';
-  }
-
-  String _buildShortDescription(String fullText) {
-    final clean = _cleanNarrativeText(fullText);
-    if (clean.length <= 180) return clean;
-
-    final sentences = clean.split('. ');
-    if (sentences.length > 1) {
-      var summary = sentences.take(2).join('. ').trim();
-      if (!summary.endsWith('.')) summary = '$summary.';
-      if (summary.length <= 180) return summary;
-      return '${summary.substring(0, 177).trim()}...';
-    }
-
-    return '${clean.substring(0, 177).trim()}...';
-  }
-
-  String _cleanNarrativeText(String value) {
-    return value
-        .replaceAll(RegExp(r'^\s*[-*]\s*', multiLine: true), '')
-        .replaceAll('\n', ' ')
-        .replaceAll(RegExp(r'\s+'), ' ')
-        .trim();
-  }
-
-  String _sanitizeTitle(String value) {
-    var title = value
-        .replaceFirst(
-          RegExp(
-            r'^(?:project(?:\s*name)?|project title|title)\s*[:\-]\s*',
-            caseSensitive: false,
-          ),
-          '',
-        )
-        .replaceAll(RegExp(r'\s+'), ' ')
-        .trim();
-
-    title = title.replaceAll(RegExp(r'^[`"]+|[`",.;:]+$'), '').trim();
-    if (title.length > 90) {
-      title = title.substring(0, 90).trim();
-    }
-    return title;
-  }
-
-  String _detectProjectCategory(String text) {
-    final lower = text.toLowerCase();
-    if (lower.contains('academic') || lower.contains('university')) {
-      return 'Academic Project';
-    }
-    if (lower.contains('personal') || lower.contains('side project')) {
-      return 'Personal Project';
-    }
-    return 'Professional Work';
-  }
-
-  bool _looksLikeSectionHeading(String value) {
-    final normalized = value.toLowerCase();
-    const headings = {
-      'experience',
-      'work experience',
-      'professional experience',
-      'summary',
-      'profile summary',
-      'education',
-      'skills',
-      'certifications',
-      'contact',
-      'responsibilities',
-    };
-    if (headings.contains(normalized)) return true;
-    return normalized.contains('roles and responsibilities');
-  }
-
-  int _projectQualityScore(Map<String, dynamic> project) {
-    final fullDescriptionLength =
-        (project['fullDescription'] as String? ?? '').length;
-    final shortDescriptionLength =
-        (project['description'] as String? ?? '').length;
-    final techCount =
-        (project['techStack'] as List<dynamic>? ?? const []).length;
-    return (fullDescriptionLength ~/ 10) +
-        (shortDescriptionLength ~/ 20) +
-        (techCount * 5);
-  }
-
-  String _normalizeProjectKey(String? title) {
-    if (title == null) return '';
-    return title.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), '');
-  }
-
-  Map<String, dynamic> _toProjectMap({
-    required String title,
-    required String role,
-    required String description,
-    required String fullDescription,
-    required List<String> techStack,
-    required String category,
-  }) {
-    return {
-      'title': title,
-      'role': role,
-      'description': description,
-      'fullDescription': fullDescription,
-      'techStack': techStack,
-      'category': category,
-      'imageUrl': '',
-      'liveLink': '',
-      'githubLink': '',
-    };
-  }
-
-  Future<void> _saveToFirestore() async {
-    setState(() => _isLoading = true);
     try {
-      // Logic same as before...
-      final name = _extractedProfile['name'];
-      final email = _extractedProfile['email'] ?? '';
-      final linkedin = _extractedProfile['linkedin'] ?? '';
-      final github = _extractedProfile['github'] ?? '';
-      final skills = List<String>.from(_extractedProfile['skills'] ?? []);
-      final role = _extractedProfile['role'] ?? 'Software Engineer';
+      // 1. Extract Text
+      final bytes = await _selectedFile!.readAsBytes();
+      final PdfDocument document = PdfDocument(inputBytes: bytes);
+      String text = PdfTextExtractor(document).extractText();
+      document.dispose();
 
-      if (_pickedFilePath != null) {
-        setState(() => _status = "Uploading Resume PDF...");
-        final url = await CloudinaryService().uploadPdf(_pickedFilePath!);
-        if (url != null) {
-          debugPrint("UPLOADED SUCCESS: $url");
-          _extractedProfile['resumeUrl'] = url;
-        } else {
-          debugPrint("UPLOAD RETURNED NULL");
-        }
-      } else {
-        debugPrint("PICKED FILE PATH IS NULL");
+      if (text.isEmpty) {
+        throw Exception(
+            "Could not extract any text from the PDF. It might be an image scan.");
       }
 
-      await _firestoreService.updateContent('hero', {
-        'title': "HI, I'M ${name.toUpperCase()}",
-        'subtitle': role,
-        'badge': "Available for Work",
+      // 2. Send to AI
+      setState(() {
+        _statusMessage = "Analyzing document...";
       });
 
-      Map<String, dynamic> contactData = {};
-      if (email.isNotEmpty) contactData['email'] = email;
-      if (_extractedProfile['resumeUrl'] != null) {
-        contactData['resumeUrl'] = _extractedProfile['resumeUrl'];
-      }
-      if (contactData.isNotEmpty) {
-        debugPrint("UPDATING CONTACT WITH: $contactData");
-        await _firestoreService.updateContent('contact', contactData);
-      } else {
-        debugPrint("NO CONTACT DATA TO UPDATE");
-      }
+      final parser = GeminiResumeParser(apiKey: _geminiApiKey);
+      final data = await parser.parseResume(text);
 
-      List<Map<String, String>> socialLinks = [];
-      if (linkedin.isNotEmpty) {
-        socialLinks.add({'platform': 'linkedin', 'url': linkedin});
-      }
-      if (github.isNotEmpty) {
-        socialLinks.add({'platform': 'github', 'url': github});
-      }
-
-      // Add moreLinks if they exist
-      final List<Map<String, dynamic>>? moreLinks =
-          _extractedProfile['moreLinks'] != null
-              ? List<Map<String, dynamic>>.from(_extractedProfile['moreLinks'])
-              : null;
-      if (moreLinks != null) {
-        for (var link in moreLinks) {
-          socialLinks.add({
-            'platform': link['platform'].toString(),
-            'url': link['url'].toString()
-          });
-        }
-      }
-
-      // Update about profile including social links
-      Map<String, dynamic> aboutUpdate = {
-        'biography': _extractedProfile['bio'] ?? '',
-      };
-      if (socialLinks.isNotEmpty) {
-        aboutUpdate['socialLinks'] = socialLinks;
-      }
-      await _firestoreService.updateContent('about', aboutUpdate);
-
-      // Add skills to skills section
-      if (skills.isNotEmpty) {
-        await _firestoreService.updateContent('skills', {
-          'frameworks': skills,
-        });
-      }
-
-      // Upsert parsed projects by normalized title to avoid duplicates
-      final existingProjectsSnapshot =
-          await _firestoreService.getProjectsOnce();
-      final existingProjectIdByTitle = <String, String>{};
-
-      for (final doc in existingProjectsSnapshot.docs) {
-        final existingData = doc.data();
-        final existingTitle = existingData['title']?.toString();
-        final key = _normalizeProjectKey(existingTitle);
-        if (key.isNotEmpty && !existingProjectIdByTitle.containsKey(key)) {
-          existingProjectIdByTitle[key] = doc.id;
-        }
-      }
-
-      for (final parsedProject in _extractedProjects) {
-        final key = _normalizeProjectKey(parsedProject['title']?.toString());
-        if (key.isEmpty) continue;
-
-        final existingId = existingProjectIdByTitle[key];
-        if (existingId != null) {
-          await _firestoreService.updateProject(existingId, parsedProject);
-        } else {
-          await _firestoreService.addProject(parsedProject);
-        }
-      }
-
-      if (mounted) {
-        ActionDialog.show(
-          context,
-          title: "Success",
-          message:
-              "Your portfolio has been synchronized with your resume data!",
-          onConfirm: () => Navigator.pop(context),
-        );
-      }
+      setState(() {
+        _parsedData = data;
+        _isParsing = false;
+      });
     } catch (e) {
+      setState(() {
+        _isParsing = false;
+        _statusMessage = "";
+      });
       if (mounted) {
         ActionDialog.show(
           context,
-          title: "Save Error",
+          title: "Parsing Failed",
           message: e.toString(),
           type: ActionDialogType.danger,
           onConfirm: () {},
         );
       }
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
     }
   }
 
-  void _editProject(int index) {
-    final project = _extractedProjects[index];
-    final titleCtrl = TextEditingController(text: project['title']);
-    final roleCtrl =
-        TextEditingController(text: project['role'] ?? 'Developer');
-    final descCtrl = TextEditingController(text: project['description']);
-    final fullDescCtrl =
-        TextEditingController(text: project['fullDescription']);
-    final techCtrl =
-        TextEditingController(text: (project['techStack'] as List).join(', '));
+  Future<void> _applyData() async {
+    if (_parsedData == null) return;
 
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: AppTheme.surfaceColor,
-        title: Text("Edit Extracted Project",
-            style: GoogleFonts.outfit(color: Colors.white)),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              CustomTextField(label: "TITLE", controller: titleCtrl),
-              const SizedBox(height: 16),
-              CustomTextField(label: "ROLE", controller: roleCtrl),
-              const SizedBox(height: 16),
-              CustomTextField(
-                  label: "SHORT SUMMARY",
-                  controller: descCtrl,
-                  isMultiline: true),
-              const SizedBox(height: 16),
-              CustomTextField(
-                  label: "FULL DESCRIPTION (DEEP DIVE)",
-                  controller: fullDescCtrl,
-                  isMultiline: true),
-              const SizedBox(height: 16),
-              CustomTextField(
-                  label: "TECH STACK (Comma separated)", controller: techCtrl),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text("Cancel"),
-          ),
-          TextButton(
-            onPressed: () {
-              setState(() {
-                _extractedProjects[index] = {
-                  ..._extractedProjects[index],
-                  'title': titleCtrl.text,
-                  'role': roleCtrl.text,
-                  'description': descCtrl.text,
-                  'fullDescription': fullDescCtrl.text,
-                  'techStack': techCtrl.text
-                      .split(',')
-                      .map((e) => e.trim())
-                      .where((e) => e.isNotEmpty)
-                      .toList(),
-                };
-              });
-              Navigator.pop(ctx);
-            },
-            child: const Text("Save",
-                style: TextStyle(color: AppTheme.primaryColor)),
-          )
-        ],
-      ),
+    final shouldApply = await ActionDialog.show(
+      context,
+      title: "Apply Changes?",
+      message:
+          "This will upload your resume, overwrite existing About/Skills, and add new Projects. Proceed?",
+      confirmLabel: "APPLY ALL",
+      type: ActionDialogType.warning,
+      onConfirm: () {},
     );
-  }
 
-  void _editProfile() {
-    final nameCtrl = TextEditingController(text: _extractedProfile['name']);
-    final bioCtrl = TextEditingController(text: _extractedProfile['bio']);
+    if (shouldApply != true) return;
 
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: AppTheme.surfaceColor,
-        title: Text("Edit Profile",
-            style: GoogleFonts.outfit(color: Colors.white)),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              CustomTextField(label: "NAME", controller: nameCtrl),
-              const SizedBox(height: 16),
-              CustomTextField(
-                  label: "BIO", controller: bioCtrl, isMultiline: true),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(ctx), child: const Text("Cancel")),
-          TextButton(
-            onPressed: () {
-              setState(() {
-                _extractedProfile['name'] = nameCtrl.text;
-                _extractedProfile['bio'] = bioCtrl.text;
-              });
-              Navigator.pop(ctx);
-            },
-            child: const Text("Save",
-                style: TextStyle(color: AppTheme.primaryColor)),
-          )
-        ],
-      ),
-    );
-  }
+    setState(() {
+      _isLoading = true;
+      _statusMessage = "Uploading PDF to Cloudinary...";
+    });
 
-  void _editSocialLinks() {
-    final lnCtrl = TextEditingController(text: _extractedProfile['linkedin']);
-    final ghCtrl = TextEditingController(text: _extractedProfile['github']);
+    try {
+      final firestore = FirestoreService();
+      String? pdfUrl;
 
-    // Add provision for more links
-    final List<Map<String, dynamic>> moreLinks =
-        List.from(_extractedProfile['moreLinks'] ?? []);
-    final List<TextEditingController> platformCtrls = moreLinks
-        .map((e) => TextEditingController(text: e['platform']))
-        .toList();
-    final List<TextEditingController> urlCtrls =
-        moreLinks.map((e) => TextEditingController(text: e['url'])).toList();
+      // 1. Upload PDF
+      if (_selectedFile != null) {
+        pdfUrl = await CloudinaryService().uploadPdf(_selectedFile!.path);
+      }
 
-    showDialog(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          backgroundColor: AppTheme.surfaceColor,
-          title: Text("Edit Social Links",
-              style: GoogleFonts.outfit(color: Colors.white)),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                CustomTextField(label: "LINKEDIN URL", controller: lnCtrl),
-                const SizedBox(height: 16),
-                CustomTextField(label: "GITHUB URL", controller: ghCtrl),
-                const Divider(height: 32, color: Colors.white10),
-                Text("ADDITIONAL LINKS",
-                    style: GoogleFonts.inter(
-                        fontSize: 10,
-                        fontWeight: FontWeight.bold,
-                        color: AppTheme.primaryColor)),
-                const SizedBox(height: 8),
-                ...List.generate(
-                    platformCtrls.length,
-                    (index) => Padding(
-                          padding: const EdgeInsets.only(bottom: 12),
-                          child: Row(
-                            children: [
-                              Expanded(
-                                  flex: 2,
-                                  child: CustomTextField(
-                                      label: "PLATFORM",
-                                      controller: platformCtrls[index])),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                  flex: 3,
-                                  child: CustomTextField(
-                                      label: "URL",
-                                      controller: urlCtrls[index])),
-                              IconButton(
-                                icon: const Icon(Icons.remove_circle_outline,
-                                    color: Colors.redAccent, size: 20),
-                                onPressed: () {
-                                  setDialogState(() {
-                                    platformCtrls.removeAt(index);
-                                    urlCtrls.removeAt(index);
-                                  });
-                                },
-                              )
-                            ],
-                          ),
-                        )),
-                TextButton.icon(
-                  onPressed: () {
-                    setDialogState(() {
-                      platformCtrls.add(TextEditingController());
-                      urlCtrls.add(TextEditingController());
-                    });
-                  },
-                  icon: const Icon(Icons.add, size: 16),
-                  label: const Text("ADD LINK"),
-                )
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-                onPressed: () => Navigator.pop(ctx),
-                child: const Text("Cancel")),
-            TextButton(
-              onPressed: () {
-                setState(() {
-                  _extractedProfile['linkedin'] = lnCtrl.text;
-                  _extractedProfile['github'] = ghCtrl.text;
+      setState(() {
+        _statusMessage = "Saving data to Firestore...";
+      });
 
-                  List<Map<String, String>> savedMoreLinks = [];
-                  for (int i = 0; i < platformCtrls.length; i++) {
-                    if (platformCtrls[i].text.isNotEmpty &&
-                        urlCtrls[i].text.isNotEmpty) {
-                      savedMoreLinks.add({
-                        'platform': platformCtrls[i].text.toLowerCase(),
-                        'url': urlCtrls[i].text
-                      });
-                    }
-                  }
-                  _extractedProfile['moreLinks'] = savedMoreLinks;
-                });
-                Navigator.pop(ctx);
-              },
-              child: const Text("Save",
-                  style: TextStyle(color: AppTheme.primaryColor)),
-            )
-          ],
-        ),
-      ),
-    );
-  }
+      // 2. Update About (Bio, Education, Experience, ResumeURL)
+      Map<String, dynamic> aboutData = {
+        'biography': _parsedData!.summary,
+        'location': _parsedData!.location,
+        'education': _parsedData!.education.map((e) => e.toMap()).toList(),
+        'experience': _parsedData!.experience.map((e) => e.toMap()).toList(),
+        'title': "About Me",
+      };
 
-  void _editSkills() {
-    final skills = List<String>.from(_extractedProfile['skills'] ?? []);
-    final skillsCtrl = TextEditingController(text: skills.join(', '));
+      if (pdfUrl != null) {
+        aboutData['resumeUrl'] = pdfUrl;
+      }
 
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: AppTheme.surfaceColor,
-        title: Text("Edit Extracted Skills",
-            style: GoogleFonts.outfit(color: Colors.white)),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              CustomTextField(
-                label: "SKILLS (Comma separated)",
-                controller: skillsCtrl,
-                isMultiline: true,
-              )
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text("Cancel"),
-          ),
-          TextButton(
-            onPressed: () {
-              setState(() {
-                _extractedProfile['skills'] = skillsCtrl.text
-                    .split(',')
-                    .map((e) => e.trim())
-                    .where((e) => e.isNotEmpty && e.length < 50)
-                    .toList();
-              });
-              Navigator.pop(ctx);
-            },
-            child: const Text("Save",
-                style: TextStyle(color: AppTheme.primaryColor)),
-          )
-        ],
-      ),
-    );
-  }
+      await firestore.updateContent('about', aboutData);
 
-  @override
-  Widget build(BuildContext context) {
-    return PopScope(
-      canPop: !_hasParsed || _isLoading,
-      onPopInvokedWithResult: (didPop, result) async {
-        if (didPop) return;
+      // 3. Update Skills (Flatten the map)
+      Map<String, dynamic> skillsUpdate = {};
+      _parsedData!.skills.forEach((category, items) {
+        skillsUpdate[category] = items;
+      });
+      if (skillsUpdate.isNotEmpty) {
+        await firestore.updateContent('skills', skillsUpdate);
+      }
 
-        final shouldPop = await ActionDialog.show(
+      // 4. Add Projects
+      for (var project in _parsedData!.projects) {
+        await firestore.addProject(project.toMap());
+      }
+
+      // 5. Update Contact info in 'contact' section
+      if (_parsedData!.email.isNotEmpty) {
+        await firestore.updateContent('contact', {
+          'email': _parsedData!.email,
+        });
+      }
+
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _statusMessage = "";
+          _selectedFile = null;
+          _parsedData = null;
+        });
+
+        ActionDialog.show(
           context,
-          title: "Stop Review?",
-          message:
-              "You have extracted data that hasn't been saved yet. Are you sure you want to discard the results?",
-          confirmLabel: "DISCARD",
-          type: ActionDialogType.warning,
+          title: "Success! 🚀",
+          message: "Resume uploaded and portfolio updated successfully.",
+          onConfirm: () => Navigator.pop(context),
+        );
+      }
+    } catch (e) {
+      setState(() => _isLoading = false);
+      if (mounted) {
+        ActionDialog.show(
+          context,
+          title: "Save Failed",
+          message: e.toString(),
+          type: ActionDialogType.danger,
           onConfirm: () {},
         );
-
-        if (shouldPop == true && mounted) {
-          Navigator.pop(this.context);
-        }
-      },
-      child: Scaffold(
-        backgroundColor: AppTheme.scaffoldBackgroundColor,
-        appBar: AppBar(
-          title: Text(_hasParsed ? 'Review Data' : 'Upload Resume',
-              style: GoogleFonts.outfit(fontWeight: FontWeight.bold)),
-          backgroundColor: AppTheme.scaffoldBackgroundColor,
-        ),
-        bottomNavigationBar: _hasParsed && !_isLoading
-            ? Padding(
-                padding: const EdgeInsets.all(20),
-                child: PrimaryButton(
-                    text: "SAVE TO PORTFOLIO", onPressed: _saveToFirestore),
-              )
-            : null,
-        body: _isLoading
-            ? Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const CircularProgressIndicator(
-                        color: AppTheme.primaryColor),
-                    const SizedBox(height: 24),
-                    Text(_status,
-                        style:
-                            GoogleFonts.inter(color: AppTheme.textSecondary)),
-                  ],
-                ),
-              )
-            : !_hasParsed
-                ? _buildUploadView()
-                : _buildReviewView(),
-      ),
-    );
+      }
+    }
   }
 
-  Widget _buildUploadView() {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24.0),
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AppTheme.scaffoldBackgroundColor,
+      appBar: AppBar(
+        title: Text("RESUME PARSER",
+            style: GoogleFonts.outfit(
+                fontWeight: FontWeight.bold, letterSpacing: 1)),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(24),
         child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Container(
+            const SizedBox(height: 32),
+            _buildUploadSection(),
+            if (_isParsing) ...[
+              const SizedBox(height: 48),
+              Container(
                 padding: const EdgeInsets.all(32),
                 decoration: BoxDecoration(
-                  color: AppTheme.primaryColor.withValues(alpha: 0.1),
-                  shape: BoxShape.circle,
+                  color: AppTheme.surfaceColor,
+                  borderRadius: BorderRadius.circular(24),
+                  border: Border.all(color: Colors.white10),
                 ),
-                child: const Icon(Icons.cloud_upload_outlined,
-                    size: 64, color: AppTheme.primaryColor)),
-            const SizedBox(height: 32),
-            Text(
-              "Import from Resume",
-              style: GoogleFonts.outfit(
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                  color: AppTheme.textPrimary),
-            ),
-            const SizedBox(height: 12),
-            Text(
-              "Upload your PDF resume to automatically populate your portfolio content.",
-              textAlign: TextAlign.center,
-              style: GoogleFonts.inter(
-                  fontSize: 16, color: AppTheme.textSecondary, height: 1.5),
-            ),
-            const SizedBox(height: 48),
-            PrimaryButton(
-              text: "SELECT PDF FILE",
-              onPressed: _pickAndParseResume,
-              icon: Icons.folder_open,
-            ),
+                child: Column(
+                  children: [
+                    const SizedBox(
+                      height: 40,
+                      width: 40,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 3,
+                        color: AppTheme.primaryColor,
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    Text(
+                      _statusMessage, // "Analyzing document..."
+                      textAlign: TextAlign.center,
+                      style: GoogleFonts.outfit(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      "Please wait while we process your resume...",
+                      textAlign: TextAlign.center,
+                      style: GoogleFonts.inter(
+                        color: Colors.white54,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+            if (_parsedData != null) _buildPreviewSection(),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildReviewView() {
-    return ListView(
-      padding: const EdgeInsets.all(20),
+  Widget _buildUploadSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            const _SectionHeader(title: "EXTRACTED PROFILE"),
-            IconButton(
-              icon:
-                  const Icon(Icons.edit_outlined, color: AppTheme.primaryColor),
-              onPressed: _editProfile,
-            ),
-          ],
-        ),
-        GradientCard(
-            child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _InfoRow(icon: Icons.person, value: _extractedProfile['name']),
-            const SizedBox(height: 12),
-            _InfoRow(icon: Icons.email, value: _extractedProfile['email']),
-            const SizedBox(height: 12),
-            _InfoRow(icon: Icons.info_outline, value: _extractedProfile['bio']),
-          ],
-        )),
-        const SizedBox(height: 24),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            const _SectionHeader(title: "SOCIAL LINKS"),
-            IconButton(
-              icon:
-                  const Icon(Icons.edit_outlined, color: AppTheme.primaryColor),
-              onPressed: _editSocialLinks,
-            ),
-          ],
-        ),
-        GradientCard(
-            child: Column(
-          children: [
-            if (_extractedProfile['linkedin'] != null &&
-                _extractedProfile['linkedin'].isNotEmpty)
-              _InfoRow(icon: Icons.link, value: _extractedProfile['linkedin']),
-            if (_extractedProfile['github'] != null &&
-                _extractedProfile['github'].isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.only(top: 12),
-                child: _InfoRow(
-                    icon: Icons.code, value: _extractedProfile['github']),
+        Text("Upload Resume",
+            style: GoogleFonts.outfit(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                color: Colors.white)),
+        const SizedBox(height: 16),
+        Container(
+          height: 150,
+          decoration: BoxDecoration(
+            color: AppTheme.surfaceColor,
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(color: Colors.white10),
+          ),
+          child: InkWell(
+            onTap: _pickResume,
+            borderRadius: BorderRadius.circular(24),
+            child: Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    _selectedFile == null
+                        ? Icons.cloud_upload_outlined
+                        : Icons.description_outlined,
+                    size: 48,
+                    color: _selectedFile == null
+                        ? Colors.white24
+                        : AppTheme.primaryColor,
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    _selectedFile == null
+                        ? "Tap to select PDF Resume"
+                        : _selectedFile!.path.split('/').last,
+                    style: GoogleFonts.inter(
+                      fontSize: 16,
+                      color: _selectedFile == null
+                          ? AppTheme.textSecondary
+                          : Colors.white,
+                      fontWeight: _selectedFile == null
+                          ? FontWeight.normal
+                          : FontWeight.bold,
+                    ),
+                  ),
+                ],
               ),
-            ...(_extractedProfile['moreLinks'] as List<Map<String, String>>? ??
-                    [])
-                .map((link) => Padding(
-                      padding: const EdgeInsets.only(top: 12),
-                      child: _InfoRow(
-                          icon: Icons.alternate_email,
-                          value:
-                              "${link['platform']?.toUpperCase()}: ${link['url']}"),
-                    )),
-            if ((_extractedProfile['linkedin'] == null ||
-                    _extractedProfile['linkedin'].isEmpty) &&
-                (_extractedProfile['github'] == null ||
-                    _extractedProfile['github'].isEmpty) &&
-                (_extractedProfile['moreLinks'] == null ||
-                    (_extractedProfile['moreLinks'] as List).isEmpty))
-              Text("No social links found. Tap edit to add.",
-                  style: GoogleFonts.inter(
-                      color: AppTheme.textSecondary, fontSize: 13)),
-          ],
-        )),
-        const SizedBox(height: 24),
-        const SizedBox(height: 24),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            const _SectionHeader(title: "EXTRACTED SKILLS"),
-            IconButton(
-              icon:
-                  const Icon(Icons.edit_outlined, color: AppTheme.primaryColor),
-              onPressed: _editSkills,
-            ),
-          ],
-        ),
-        GradientCard(
-          child: SizedBox(
-            width: double.infinity,
-            child: Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: (_extractedProfile['skills'] as List<dynamic>? ?? [])
-                  .map((s) => Chip(
-                        label: Text(s.toString(),
-                            style: GoogleFonts.inter(fontSize: 12)),
-                        backgroundColor: AppTheme.inputFillColor,
-                        side: BorderSide.none,
-                        padding: const EdgeInsets.symmetric(horizontal: 4),
-                        labelStyle: const TextStyle(color: Colors.white),
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8)),
-                      ))
-                  .toList(),
             ),
           ),
         ),
         const SizedBox(height: 24),
-        _SectionHeader(title: "PROJECTS (${_extractedProjects.length})"),
-        ..._extractedProjects.asMap().entries.map((entry) {
-          final index = entry.key;
-          final p = entry.value;
-          return Container(
-            margin: const EdgeInsets.only(bottom: 16),
-            child: Stack(
-              children: [
-                GradientCard(
-                    padding: const EdgeInsets.only(
-                        top: 24, bottom: 20, left: 20, right: 60),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(p['title'],
-                            style: GoogleFonts.outfit(
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                                color: AppTheme.textPrimary)),
-                        const SizedBox(height: 4),
-                        Text(p['role'] ?? 'Developer',
-                            style: GoogleFonts.inter(
-                                fontSize: 13,
-                                fontWeight: FontWeight.bold,
-                                color: AppTheme.primaryColor,
-                                letterSpacing: 1.2)),
-                        const SizedBox(height: 12),
-                        Text(p['description'],
-                            style: GoogleFonts.inter(
-                                fontSize: 13,
-                                color: AppTheme.textSecondary,
-                                height: 1.4)),
-                        const SizedBox(height: 16),
-                        Wrap(
-                            spacing: 8,
-                            runSpacing: 8,
-                            children: (p['techStack'] as List)
-                                .map<Widget>((t) => Container(
-                                    padding: const EdgeInsets.symmetric(
-                                        horizontal: 10, vertical: 4),
-                                    decoration: BoxDecoration(
-                                        color: Colors.white
-                                            .withValues(alpha: 0.05),
-                                        border:
-                                            Border.all(color: Colors.white10),
-                                        borderRadius: BorderRadius.circular(8)),
-                                    child: Text(t,
-                                        style: GoogleFonts.inter(
-                                            fontSize: 11,
-                                            color: Colors.white70,
-                                            fontWeight: FontWeight.w500))))
-                                .toList())
-                      ],
-                    )),
-                Positioned(
-                    right: 12,
-                    top: 12,
-                    child: Column(
-                      children: [
-                        IconButton(
-                          icon: const Icon(Icons.edit_outlined,
-                              color: AppTheme.primaryColor, size: 22),
-                          onPressed: () => _editProject(index),
-                          visualDensity: VisualDensity.compact,
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.delete_outline,
-                              color: AppTheme.errorColor, size: 22),
-                          onPressed: () => setState(
-                              () => _extractedProjects.removeAt(index)),
-                          visualDensity: VisualDensity.compact,
-                        ),
-                      ],
-                    ))
-              ],
-            ),
-          );
-        }).toList(),
-        const SizedBox(height: 80),
+        PrimaryButton(
+          text: "ANALYZE RESUME",
+          onPressed: _selectedFile != null ? _parseResume : () {},
+          isLoading: _isParsing,
+          icon: Icons.auto_awesome,
+        ),
       ],
     );
   }
-}
 
-class _SectionHeader extends StatelessWidget {
-  final String title;
-  const _SectionHeader({required this.title});
-
-  @override
-  Widget build(BuildContext context) {
+  Widget _buildPreviewSection() {
+    final data = _parsedData!;
     return Padding(
-      padding: const EdgeInsets.only(bottom: 12, left: 4),
-      child: Text(title,
-          style: GoogleFonts.inter(
-              fontSize: 12,
-              fontWeight: FontWeight.bold,
-              color: AppTheme.textSecondary,
-              letterSpacing: 1.0)),
+      padding: const EdgeInsets.only(top: 48),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.check_circle_outline,
+                  color: AppTheme.successColor, size: 28),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text("Analysis Complete",
+                    style: GoogleFonts.outfit(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white)),
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
+          _buildInfoCard("Personal", [
+            "Name: ${data.name}",
+            "Email: ${data.email}",
+            "Summary: ${data.summary.substring(0, data.summary.length > 50 ? 50 : data.summary.length)}...",
+          ]),
+          const SizedBox(height: 16),
+          _buildInfoCard("Experience", [
+            "Jobs Found: ${data.experience.length}",
+            ...data.experience.map((e) => "• ${e.position} at ${e.company}")
+          ]),
+          const SizedBox(height: 16),
+          _buildInfoCard("Projects", [
+            "Projects Found: ${data.projects.length}",
+            ...data.projects
+                .map((e) => "• ${e.title} (${e.techStack.length} tech tags)")
+          ]),
+          const SizedBox(height: 16),
+          _buildInfoCard("Skills", [
+            "Categories Found: ${data.skills.length}",
+            ...data.skills.entries.map(
+                (e) => "• ${e.key.toUpperCase()}: ${e.value.length} skills"),
+          ]),
+          const SizedBox(height: 48),
+          PrimaryButton(
+            text: "APPLY DATA TO PORTFOLIO",
+            onPressed: _isLoading ? () {} : _applyData,
+            isLoading: _isLoading,
+            icon: Icons.save_alt,
+          ),
+          const SizedBox(height: 16),
+          Center(
+              child: Text("This will update your database instantly.",
+                  style:
+                      GoogleFonts.inter(fontSize: 12, color: Colors.white38))),
+        ],
+      ),
     );
   }
-}
 
-class _InfoRow extends StatelessWidget {
-  final IconData icon;
-  final String value;
-  const _InfoRow({required this.icon, required this.value});
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Icon(icon, size: 16, color: AppTheme.primaryColor),
-        const SizedBox(width: 12),
-        Expanded(
-            child: Text(value,
-                style: GoogleFonts.inter(color: AppTheme.textPrimary)))
-      ],
+  Widget _buildInfoCard(String title, List<String> lines) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: AppTheme.inputFillColor,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.white10),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(title,
+              style: GoogleFonts.outfit(
+                  fontWeight: FontWeight.bold, color: AppTheme.primaryColor)),
+          const SizedBox(height: 12),
+          ...lines.map((line) => Padding(
+                padding: const EdgeInsets.only(bottom: 4),
+                child: Text(line,
+                    style:
+                        GoogleFonts.inter(color: Colors.white70, fontSize: 13)),
+              )),
+        ],
+      ),
     );
   }
 }

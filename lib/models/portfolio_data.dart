@@ -4,6 +4,7 @@ class HeroData {
   String subtitle;
   String cta;
   String secondaryCta;
+  String imageUrl;
 
   HeroData({
     required this.badge,
@@ -11,6 +12,7 @@ class HeroData {
     required this.subtitle,
     required this.cta,
     required this.secondaryCta,
+    this.imageUrl = '',
   });
 
   factory HeroData.fromMap(Map<String, dynamic> map) {
@@ -20,6 +22,7 @@ class HeroData {
       subtitle: map['subtitle'] ?? '',
       cta: map['cta'] ?? '',
       secondaryCta: map['secondaryCta'] ?? '',
+      imageUrl: map['imageUrl'] ?? '',
     );
   }
 
@@ -30,6 +33,7 @@ class HeroData {
       'subtitle': subtitle,
       'cta': cta,
       'secondaryCta': secondaryCta,
+      'imageUrl': imageUrl,
     };
   }
 }
@@ -38,13 +42,17 @@ class AboutData {
   String title;
   String biography;
   String location;
+  String resumeUrl; // Added resumeUrl
   List<Education> education;
+  List<Experience> experience;
 
   AboutData({
     required this.title,
     required this.biography,
     required this.location,
+    this.resumeUrl = '',
     required this.education,
+    required this.experience,
   });
 
   factory AboutData.fromMap(Map<String, dynamic> map) {
@@ -52,9 +60,13 @@ class AboutData {
       title: map['title'] ?? '',
       biography: map['biography'] ?? '',
       location: map['location'] ?? '',
-      education:
-          (map['education'] as List<dynamic>?)
+      resumeUrl: map['resumeUrl'] ?? '',
+      education: (map['education'] as List<dynamic>?)
               ?.map((e) => Education.fromMap(e))
+              .toList() ??
+          [],
+      experience: (map['experience'] as List<dynamic>?)
+              ?.map((e) => Experience.fromMap(e))
               .toList() ??
           [],
     );
@@ -65,7 +77,9 @@ class AboutData {
       'title': title,
       'biography': biography,
       'location': location,
+      'resumeUrl': resumeUrl,
       'education': education.map((e) => e.toMap()).toList(),
+      'experience': experience.map((e) => e.toMap()).toList(),
     };
   }
 }
@@ -91,6 +105,42 @@ class Education {
 
   Map<String, dynamic> toMap() {
     return {'degree': degree, 'institution': institution, 'year': year};
+  }
+}
+
+class Experience {
+  String position;
+  String company;
+  String startDate;
+  String endDate;
+  String description;
+
+  Experience({
+    required this.position,
+    required this.company,
+    required this.startDate,
+    required this.endDate,
+    required this.description,
+  });
+
+  factory Experience.fromMap(Map<String, dynamic> map) {
+    return Experience(
+      position: map['position'] ?? '',
+      company: map['company'] ?? '',
+      startDate: map['startDate'] ?? '',
+      endDate: map['endDate'] ?? '',
+      description: map['description'] ?? '',
+    );
+  }
+
+  Map<String, dynamic> toMap() {
+    return {
+      'position': position,
+      'company': company,
+      'startDate': startDate,
+      'endDate': endDate,
+      'description': description,
+    };
   }
 }
 

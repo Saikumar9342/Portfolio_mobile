@@ -247,6 +247,16 @@ class _ContentEditorScreenState extends State<ContentEditorScreen> {
           'interests': ['Photography', 'Music', 'Travel'],
           'socialLinks': [
             {'platform': 'github', 'url': ''}
+          ],
+          'resumeUrl': '',
+          'experience': [
+            {
+              'position': 'Position',
+              'company': 'Company',
+              'startDate': '2023',
+              'endDate': 'Present',
+              'description': 'Role description...'
+            }
           ]
         };
       case 'contact':

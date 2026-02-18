@@ -43,12 +43,12 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _initBadgeListener() {
     _badgeSubscription =
-        _service.streamUnreadMessagesCount().listen((count) async {
+        _service.streamUnreadMessagesCount().listen((messageCount) async {
       try {
         final isSupported = await FlutterAppBadger.isAppBadgeSupported();
         if (isSupported) {
-          if (count > 0) {
-            FlutterAppBadger.updateBadgeCount(count);
+          if (messageCount > 0) {
+            FlutterAppBadger.updateBadgeCount(messageCount);
           } else {
             FlutterAppBadger.removeBadge();
           }
