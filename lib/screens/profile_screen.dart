@@ -3,7 +3,6 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import '../theme/app_theme.dart';
-import '../services/seed_data.dart';
 import '../widgets/action_dialog.dart';
 import 'domain_settings_screen.dart';
 import '../services/firestore_service.dart';
@@ -97,34 +96,35 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
-  Future<void> _seedDatabase() async {
+  Future<void> _clearDatabase() async {
     final confirm = await ActionDialog.show(
       context,
-      title: "Reset Database",
+      title: "Clear Portfolio Data",
       message:
-          "This will overwrite your existing 'about', 'contact', 'hero', 'skills', and 'expertise' data with default mock data. Projects will remain. Continue?",
-      confirmLabel: "RESET NOW",
-      type: ActionDialogType.warning,
+          "WARNING: This will permanently DELETE all your portfolio content, projects, and customizations. This action cannot be undone. Are you sure?",
+      confirmLabel: "DELETE EVERYTHING",
+      type: ActionDialogType.danger,
       onConfirm: () {},
     );
 
     if (confirm == true) {
       setState(() => _isLoading = true);
       try {
-        await DataSeeder().seedAllData();
+        await FirestoreService().clearPortfolioData();
         if (mounted) {
           ActionDialog.show(
             context,
-            title: "Database Reset",
+            title: "Portfolio Cleared",
             message:
-                "All non-project data has been restored to default values.",
+                "All portfolio data has been deleted. You can now use Resume Upload to create a fresh portfolio.",
+            type: ActionDialogType.success,
             onConfirm: () {},
           );
         }
       } catch (e) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text("Failed to reset database: $e")),
+            SnackBar(content: Text("Failed to clear data: $e")),
           );
         }
       } finally {
@@ -284,10 +284,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 const SizedBox(height: 16),
                 _buildActionCard(
                   title: "Reset Database",
-                  subtitle: "Restore all data to default mock data",
-                  icon: Icons.refresh_rounded,
-                  color: Colors.orange,
-                  onTap: _seedDatabase,
+                  subtitle: "Permanently delete all data to start fresh",
+                  icon: Icons.delete_forever_rounded,
+                  color: AppTheme.errorColor,
+                  onTap: _clearDatabase,
                 ),
                 const SizedBox(height: 16),
                 _buildActionCard(

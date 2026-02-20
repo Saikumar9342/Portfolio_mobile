@@ -407,7 +407,7 @@ class _ResumeUploadScreenState extends State<ResumeUploadScreen> {
                   minHeight: 10,
                   backgroundColor: Colors.white10,
                   valueColor:
-                      AlwaysStoppedAnimation<Color>(AppTheme.primaryColor),
+                      const AlwaysStoppedAnimation<Color>(AppTheme.primaryColor),
                 );
               },
             ),

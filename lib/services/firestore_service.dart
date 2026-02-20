@@ -1,6 +1,7 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:flutter/foundation.dart';
 
 class FirestoreService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
@@ -561,5 +562,59 @@ class FirestoreService {
 
   Future<void> deleteMessage(String messageId) {
     return _getMessageDoc(messageId).delete();
+  }
+
+  // --- Reset / Clear Data ---
+
+  Future<void> clearPortfolioData() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) throw Exception("User not authenticated");
+
+    // Defines paths based on Admin vs User
+    final isGlobalAdmin = user.email == _adminEmail;
+
+    final contentRef = isGlobalAdmin
+        ? _db.collection('content')
+        : _db.collection('users').doc(user.uid).collection('content');
+
+    final projectsRef = isGlobalAdmin
+        ? _db.collection('projects')
+        : _db.collection('users').doc(user.uid).collection('projects');
+
+    final languagesRef = isGlobalAdmin
+        ? _db.collection('languages')
+        : _db.collection('users').doc(user.uid).collection('languages');
+
+    // 1. Delete standard Content docs
+    final contentDocs = [
+      'hero',
+      'about',
+      'skills',
+      'expertise',
+      'contact',
+      'navbar'
+    ];
+    for (final docId in contentDocs) {
+      await contentRef.doc(docId).delete();
+    }
+
+    // 2. Delete all Projects
+    final projectsSnapshot = await projectsRef.get();
+    for (final doc in projectsSnapshot.docs) {
+      await doc.reference.delete();
+    }
+
+    // 3. Delete all Languages (Localized content)
+    final languagesSnapshot = await languagesRef.get();
+    for (final langDoc in languagesSnapshot.docs) {
+      // Delete subcollections of language if any (Firestore doesn't auto-delete subcollections,
+      // but strictly speaking we just need to delete the references we track.
+      // Deep delete is hard in Client SDK, but usually we just delete the lang doc
+      // and the app won't find the subcollections if it iterates from lang doc.)
+      await langDoc.reference.delete();
+    }
+
+    debugPrint(
+        "Portfolio data cleared for user type: ${isGlobalAdmin ? 'ADMIN' : 'USER'}");
   }
 }
