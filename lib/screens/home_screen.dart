@@ -328,23 +328,18 @@ class _HomeScreenState extends State<HomeScreen> {
                         MaterialPageRoute(
                             builder: (_) => const ResumeUploadScreen())),
                   ),
+                  const SizedBox(height: 12),
+                  _ActionPanel(
+                    title: "Design Engine",
+                    subtitle: "Fine-tune your portfolio visual identity",
+                    icon: Icons.auto_awesome_rounded,
+                    color: AppTheme.primaryColor,
+                    onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                            builder: (_) => const DesignEngineScreen())),
+                  ),
                 ],
-              ),
-            ),
-          ),
-
-          // 6. Highlight: Design Engine
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(20, 32, 20, 0),
-              child: _FeaturedHighlightCard(
-                title: "Design Engine",
-                description: "Fine-tune your portfolio visual identity.",
-                icon: Icons.auto_awesome_rounded,
-                onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                        builder: (_) => const DesignEngineScreen())),
               ),
             ),
           ),
@@ -509,83 +504,44 @@ class _HeaderAction extends StatelessWidget {
               StreamBuilder<int>(
                   stream: stream,
                   builder: (context, snapshot) {
-                    if (!snapshot.hasData || snapshot.data == 0)
+                    if (!snapshot.hasData || snapshot.data == 0) {
                       return const SizedBox.shrink();
+                    }
+                    int count = snapshot.data!;
                     return Positioned(
-                      top: 8,
-                      right: 8,
+                      top: 0,
+                      right: 0,
                       child: Container(
-                          width: 10,
-                          height: 10,
-                          decoration: BoxDecoration(
-                              color: AppTheme.primaryColor,
-                              shape: BoxShape.circle,
-                              border: Border.all(
-                                  color: AppTheme.scaffoldBackgroundColor,
-                                  width: 2))),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 4, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: Colors.redAccent,
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                            color: AppTheme.scaffoldBackgroundColor,
+                            width: 2,
+                          ),
+                        ),
+                        constraints: const BoxConstraints(
+                          minWidth: 18,
+                          minHeight: 18,
+                        ),
+                        child: Center(
+                          child: Text(
+                            count > 99 ? '99+' : count.toString(),
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                              height: 1,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
+                      ),
                     );
                   }),
           ],
-        ),
-      ),
-    );
-  }
-}
-
-class _FeaturedHighlightCard extends StatelessWidget {
-  final String title;
-  final String description;
-  final IconData icon;
-  final VoidCallback onTap;
-
-  const _FeaturedHighlightCard(
-      {required this.title,
-      required this.description,
-      required this.icon,
-      required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return _Bouncy(
-      child: GestureDetector(
-        onTap: onTap,
-        child: Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(24),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(32),
-            gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  AppTheme.primaryColor.withValues(alpha: 0.4),
-                  AppTheme.primaryColor.withValues(alpha: 0.1)
-                ]),
-            border:
-                Border.all(color: AppTheme.primaryColor.withValues(alpha: 0.2)),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Icon(icon, color: Colors.black87, size: 24),
-                  const SizedBox(width: 12),
-                  Text(title,
-                      style: GoogleFonts.outfit(
-                          fontSize: 20,
-                          fontWeight: FontWeight.w900,
-                          color: Colors.black87)),
-                ],
-              ),
-              const SizedBox(height: 12),
-              Text(description,
-                  style: GoogleFonts.inter(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w500,
-                      color: Colors.black87.withValues(alpha: 0.7))),
-            ],
-          ),
         ),
       ),
     );
