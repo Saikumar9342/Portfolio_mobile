@@ -11,6 +11,7 @@ import 'inquiries_screen.dart';
 import '../services/firestore_service.dart';
 import '../widgets/brand_logo.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:fl_chart/fl_chart.dart';
 import '../services/notification_service.dart';
 import '../services/sound_service.dart';
 import 'dart:async';
@@ -270,6 +271,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           stream: _service.streamTotalVisitsCount(),
                           icon: Icons.remove_red_eye_rounded,
                           color: Colors.purpleAccent,
+                          hasChart: true,
                         ),
                       ),
                     ],
@@ -356,46 +358,94 @@ class _MetricCard extends StatelessWidget {
   final Stream<int> stream;
   final IconData icon;
   final Color color;
+  final bool hasChart;
 
   const _MetricCard({
     required this.label,
     required this.stream,
     required this.icon,
     required this.color,
+    this.hasChart = false,
   });
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 12),
+      clipBehavior: Clip.hardEdge,
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.03),
         borderRadius: BorderRadius.circular(24),
         border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
       ),
-      child: Column(
+      child: Stack(
+        alignment: Alignment.bottomCenter,
         children: [
-          Icon(icon, color: color.withValues(alpha: 0.8), size: 20),
-          const SizedBox(height: 12),
-          StreamBuilder<int>(
-              stream: stream,
-              builder: (context, snapshot) {
-                int count = snapshot.data ?? 0;
-                return Text(
-                  count >= 1000
-                      ? "${(count / 1000).toStringAsFixed(1)}k"
-                      : count.toString(),
-                  style: GoogleFonts.outfit(
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                      color: AppTheme.textPrimary),
-                );
-              }),
-          Text(label.toUpperCase(),
-              style: GoogleFonts.inter(
-                  fontSize: 8,
-                  fontWeight: FontWeight.w900,
-                  color: AppTheme.textSecondary.withValues(alpha: 0.3))),
+          if (hasChart)
+            SizedBox(
+              height: 50,
+              width: double.infinity,
+              child: LineChart(
+                LineChartData(
+                  gridData: const FlGridData(show: false),
+                  titlesData: const FlTitlesData(show: false),
+                  borderData: FlBorderData(show: false),
+                  minX: 0,
+                  maxX: 6,
+                  minY: 0,
+                  maxY: 6,
+                  lineBarsData: [
+                    LineChartBarData(
+                      spots: const [
+                        FlSpot(0, 1),
+                        FlSpot(1, 1.5),
+                        FlSpot(2, 1.2),
+                        FlSpot(3, 3),
+                        FlSpot(4, 2.8),
+                        FlSpot(5, 4.5),
+                        FlSpot(6, 4),
+                      ],
+                      isCurved: true,
+                      color: color.withValues(alpha: 0.4),
+                      barWidth: 2,
+                      isStrokeCapRound: true,
+                      dotData: const FlDotData(show: false),
+                      belowBarData: BarAreaData(
+                        show: true,
+                        color: color.withValues(alpha: 0.1),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 12),
+            child: Column(
+              children: [
+                Icon(icon, color: color.withValues(alpha: 0.8), size: 20),
+                const SizedBox(height: 12),
+                StreamBuilder<int>(
+                    stream: stream,
+                    builder: (context, snapshot) {
+                      int count = snapshot.data ?? 0;
+                      return Text(
+                        count >= 1000
+                            ? "${(count / 1000).toStringAsFixed(1)}k"
+                            : count.toString(),
+                        style: GoogleFonts.outfit(
+                            fontSize: 24,
+                            fontWeight: FontWeight.bold,
+                            color: AppTheme.textPrimary),
+                      );
+                    }),
+                Text(label.toUpperCase(),
+                    style: GoogleFonts.inter(
+                        fontSize: 8,
+                        fontWeight: FontWeight.w900,
+                        color: AppTheme.textSecondary.withValues(alpha: 0.3))),
+              ],
+            ),
+          ),
         ],
       ),
     );

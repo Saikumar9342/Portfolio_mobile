@@ -31,7 +31,9 @@ class FirestoreService {
   }
 
   Future<void> updateLanguage(String code, Map<String, dynamic> data) {
-    return _getLanguagesCollection().doc(code).update(data);
+    return _getLanguagesCollection()
+        .doc(code)
+        .set(data, SetOptions(merge: true));
   }
 
   Future<void> deleteLanguage(String code) {
@@ -172,7 +174,7 @@ class FirestoreService {
       {String? languageCode}) async {
     await _getProjectsCollection(languageCode: languageCode)
         .doc(docId)
-        .update(data);
+        .set(data, SetOptions(merge: true));
   }
 
   Future<void> setProject(String docId, Map<String, dynamic> data,
@@ -461,11 +463,10 @@ class FirestoreService {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return const Stream.empty();
 
-    // ADMIN LOGIC: Listen to global 'messages' filtered by targetUserId
+    // ADMIN LOGIC: Listen to all global 'messages'
     if (user.email == _adminEmail) {
       return _db
           .collection('messages')
-          .where('targetUserId', isEqualTo: user.uid)
           .orderBy('timestamp', descending: true)
           .snapshots();
     }
@@ -513,7 +514,6 @@ class FirestoreService {
     if (user.email == _adminEmail) {
       return _db
           .collection('messages')
-          .where('targetUserId', isEqualTo: user.uid)
           .snapshots()
           .map((snap) => snap.docs.length);
     }
@@ -625,7 +625,8 @@ class FirestoreService {
   }
 
   Future<void> markMessageAsRead(String messageId) {
-    return _getMessageDoc(messageId).update({'status': 'read'});
+    return _getMessageDoc(messageId)
+        .set({'status': 'read'}, SetOptions(merge: true));
   }
 
   Future<void> deleteMessage(String messageId) {
