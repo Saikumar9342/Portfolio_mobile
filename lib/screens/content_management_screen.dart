@@ -151,7 +151,7 @@ class ContentManagementScreen extends StatelessWidget {
           leading: Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: AppTheme.primaryColor.withOpacity(0.1),
+              color: AppTheme.primaryColor.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(12),
             ),
             child: Icon(icon, color: AppTheme.primaryColor, size: 24),
@@ -168,15 +168,15 @@ class ContentManagementScreen extends StatelessWidget {
             subtitle,
             style: GoogleFonts.inter(
               fontSize: 12,
-              color: AppTheme.textSecondary.withOpacity(0.6),
+              color: AppTheme.textSecondary.withValues(alpha: 0.6),
             ),
           ),
           trailing: Icon(Icons.chevron_right_rounded,
-              color: Colors.white.withOpacity(0.2)),
+              color: Colors.white.withValues(alpha: 0.2)),
         ),
         if (!isLast)
           Divider(
-            color: Colors.white.withOpacity(0.05),
+            color: Colors.white.withValues(alpha: 0.05),
             height: 1,
             indent: 70,
             endIndent: 20,
@@ -210,7 +210,7 @@ class _BackgroundGlows extends StatelessWidget {
             height: 300,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: AppTheme.primaryColor.withOpacity(0.05),
+              color: AppTheme.primaryColor.withValues(alpha: 0.05),
             ),
           ),
         ),
@@ -222,7 +222,7 @@ class _BackgroundGlows extends StatelessWidget {
             height: 400,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: Colors.blueAccent.withOpacity(0.03),
+              color: Colors.blueAccent.withValues(alpha: 0.03),
             ),
           ),
         ),
