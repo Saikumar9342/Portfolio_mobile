@@ -8,6 +8,8 @@ class SoundService {
     await HapticFeedback.selectionClick();
   }
 
+  static Future<void> playTap() => playClick();
+
   // Success Sound
   static Future<void> playSuccess() async {
     try {

@@ -1,15 +1,12 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import '../theme/app_theme.dart';
-import '../widgets/gradient_card.dart';
-import 'content_editor_screen.dart';
 import 'projects_screen.dart';
-import 'skills_manager_screen.dart';
 import 'resume_upload_screen.dart';
+import 'design_engine_screen.dart';
+import 'content_management_screen.dart';
 import 'profile_screen.dart';
-import 'language_list_screen.dart';
 import 'inquiries_screen.dart';
 import '../services/firestore_service.dart';
 import '../widgets/brand_logo.dart';
@@ -17,7 +14,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../services/notification_service.dart';
 import '../services/sound_service.dart';
 import 'dart:async';
-import 'package:flutter_app_badger/flutter_app_badger.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -29,70 +26,64 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   final ScrollController _scrollController = ScrollController();
   final FirestoreService _service = FirestoreService();
-  bool _showTitle = false;
-  StreamSubscription<int>? _badgeSubscription;
+  bool _isScrolled = false;
+  StreamSubscription? _notificationSubscription;
 
   @override
   void initState() {
     super.initState();
-    _scrollController.addListener(_onScroll);
-    _service.ensureUserProfile();
-    _saveFcmToken();
-    _initBadgeListener();
-  }
-
-  void _initBadgeListener() {
-    _badgeSubscription =
-        _service.streamUnreadMessagesCount().listen((messageCount) async {
-      try {
-        final isSupported = await FlutterAppBadger.isAppBadgeSupported();
-        if (isSupported) {
-          if (messageCount > 0) {
-            FlutterAppBadger.updateBadgeCount(messageCount);
-          } else {
-            FlutterAppBadger.removeBadge();
-          }
-        }
-      } catch (e) {
-        debugPrint("Error updating badge: $e");
+    _scrollController.addListener(() {
+      if (_scrollController.offset > 50 && !_isScrolled) {
+        setState(() => _isScrolled = true);
+      } else if (_scrollController.offset <= 50 && _isScrolled) {
+        setState(() => _isScrolled = false);
       }
     });
+
+    _initializeNotifications();
+    _service.ensureUserProfile();
   }
 
-  Future<void> _saveFcmToken() async {
+  Future<void> _initializeNotifications() async {
     try {
-      final ns = NotificationService();
-      String? token = await ns.getToken();
-      if (token != null) {
-        await _service.saveDeviceToken(token);
-      }
+      final notificationService = NotificationService();
+      await notificationService.initialize();
+
+      _notificationSubscription =
+          NotificationService.onMessage.listen((message) {
+        if (mounted) {
+          debugPrint(
+              "Message received in foreground: ${message.notification?.title}");
+        }
+      });
     } catch (e) {
-      debugPrint("Error saving FCM token: $e");
+      debugPrint("Error initializing notifications: $e");
     }
   }
 
   @override
   void dispose() {
-    _badgeSubscription?.cancel();
-    _scrollController.removeListener(_onScroll);
+    _notificationSubscription?.cancel();
     _scrollController.dispose();
     super.dispose();
   }
 
-  void _onScroll() {
-    // Show title once we've scrolled past the "Greeting" area roughly
-    if (_scrollController.offset > 80 && !_showTitle) {
-      setState(() => _showTitle = true);
-    } else if (_scrollController.offset <= 80 && _showTitle) {
-      setState(() => _showTitle = false);
+  void _launchURL(String url) async {
+    final Uri uri = Uri.parse(url);
+    try {
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+      }
+    } catch (e) {
+      debugPrint("Could not launch $url: $e");
     }
   }
 
   String get _greeting {
     final hour = DateTime.now().hour;
-    if (hour < 12) return 'Good Morning,';
-    if (hour < 17) return 'Good Afternoon,';
-    return 'Good Evening,';
+    if (hour < 12) return 'Good Morning';
+    if (hour < 17) return 'Good Afternoon';
+    return 'Good Evening';
   }
 
   String get _dateString {
@@ -104,643 +95,506 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppTheme.scaffoldBackgroundColor,
-      body: Stack(
-        children: [
-          // 1. Ambient Background Glows
-          Positioned(
-            bottom: 100,
-            right: -100,
-            child: Container(
-              width: 300,
-              height: 300,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: const Color.fromARGB(255, 223, 217, 203)
-                    .withValues(alpha: 0.12),
-                boxShadow: [
-                  BoxShadow(
-                    color: const Color.fromARGB(255, 224, 214, 191)
-                        .withValues(alpha: 0.15),
-                    blurRadius: 120,
-                    spreadRadius: 20,
+      body: CustomScrollView(
+        controller: _scrollController,
+        physics: const BouncingScrollPhysics(),
+        slivers: [
+          // 1. Clean Professional Header
+          SliverAppBar(
+            pinned: true,
+            floating: false,
+            backgroundColor: AppTheme.scaffoldBackgroundColor
+                .withValues(alpha: _isScrolled ? 0.9 : 0),
+            elevation: 0,
+            centerTitle: false,
+            title: Row(
+              children: [
+                const BrandLogo(size: 28),
+                const SizedBox(width: 10),
+                Text(
+                  "Atom",
+                  style: GoogleFonts.outfit(
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 0.5,
+                    fontSize: 22,
+                    color: AppTheme.textPrimary,
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
-          ),
-          Positioned(
-            bottom: 200,
-            left: -80,
-            child: Container(
-              width: 200,
-              height: 200,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: Colors.blueAccent.withValues(alpha: 0.08),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.blueAccent.withValues(alpha: 0.08),
-                    blurRadius: 100,
-                    spreadRadius: 10,
-                  ),
-                ],
+            actions: [
+              _HeaderAction(
+                icon: Icons.notifications_none_rounded,
+                onTap: () => Navigator.push(context,
+                    MaterialPageRoute(builder: (_) => const InquiriesScreen())),
+                hasBadge: true,
+                stream: _service.streamUnreadMessagesCount(),
               ),
-            ),
-          ),
-
-          // 2. Main Scrollable Content
-          CustomScrollView(
-            controller: _scrollController,
-            physics: const BouncingScrollPhysics(),
-            slivers: [
-              SliverAppBar(
-                pinned: true,
-                backgroundColor: AppTheme.scaffoldBackgroundColor,
-                surfaceTintColor: Colors.transparent,
-                title: AnimatedOpacity(
-                  duration: const Duration(milliseconds: 200),
-                  opacity: _showTitle ? 1.0 : 0.0,
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const BrandLogo(size: 28),
-                      const SizedBox(width: 12),
-                      Text(
-                        'ATOM',
-                        style: GoogleFonts.outfit(
-                          fontWeight: FontWeight.bold,
-                          color: AppTheme.textPrimary,
-                          letterSpacing: 1.2,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                centerTitle: false,
-                // Actions removed as requested
+              const SizedBox(width: 8),
+              _HeaderAction(
+                icon: Icons.person_outline_rounded,
+                onTap: () => Navigator.push(context,
+                    MaterialPageRoute(builder: (_) => const ProfileScreen())),
               ),
-
-              // Greeting Section (Scrolls away)
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 10, 20, 20),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            _dateString.toUpperCase(),
-                            style: GoogleFonts.inter(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                              color:
-                                  AppTheme.textSecondary.withValues(alpha: 0.7),
-                              letterSpacing: 1.5,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            _greeting,
-                            style: GoogleFonts.outfit(
-                              fontSize: 32,
-                              fontWeight: FontWeight.w300,
-                              color: AppTheme.textSecondary,
-                            ),
-                          ),
-                          StreamBuilder<User?>(
-                              stream: FirebaseAuth.instance.userChanges(),
-                              builder: (context, snapshot) {
-                                final name = (snapshot.data?.displayName !=
-                                            null &&
-                                        snapshot.data!.displayName!.isNotEmpty)
-                                    ? snapshot.data!.displayName!
-                                    : 'Saikumar';
-                                return Text(
-                                  name,
-                                  style: GoogleFonts.outfit(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 34,
-                                    color: AppTheme.textPrimary,
-                                    height: 1.0,
-                                  ),
-                                );
-                              }),
-                        ],
-                      ),
-                      Stack(
-                        children: [
-                          _Bouncy(
-                            child: IconButton(
-                              icon: const Icon(Icons.mark_email_unread_rounded,
-                                  color: AppTheme.primaryColor),
-                              iconSize: 32,
-                              onPressed: () => Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                      builder: (_) => const InquiriesScreen())),
-                            ),
-                          ),
-                          StreamBuilder<int>(
-                              stream: _service.streamUnreadMessagesCount(),
-                              builder: (context, snapshot) {
-                                if (!snapshot.hasData || snapshot.data == 0) {
-                                  return const SizedBox.shrink();
-                                }
-                                return Positioned(
-                                  right: 8,
-                                  top: 8,
-                                  child: Container(
-                                    padding: const EdgeInsets.all(4),
-                                    decoration: const BoxDecoration(
-                                      color: Colors.redAccent,
-                                      shape: BoxShape.circle,
-                                    ),
-                                    constraints: const BoxConstraints(
-                                      minWidth: 16,
-                                      minHeight: 16,
-                                    ),
-                                    child: Text(
-                                      '${snapshot.data}',
-                                      style: const TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 8,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                      textAlign: TextAlign.center,
-                                    ),
-                                  ),
-                                );
-                              }),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-
-              // Quick Actions Section
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
-                  child: _StaggeredAnimate(
-                    delay: 0,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Text(
-                              "QUICK ACTIONS",
-                              style: GoogleFonts.inter(
-                                fontSize: 12,
-                                fontWeight: FontWeight.bold,
-                                color: AppTheme.textSecondary
-                                    .withValues(alpha: 0.5),
-                                letterSpacing: 1.2,
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Container(
-                                height: 1,
-                                decoration: BoxDecoration(
-                                  gradient: LinearGradient(
-                                    colors: [
-                                      Colors.white.withValues(alpha: 0.1),
-                                      Colors.transparent
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 20),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: _Bouncy(
-                                child: _QuickActionCard(
-                                  title: "Projects",
-                                  icon: Icons.layers_outlined,
-                                  color: AppTheme.primaryColor,
-                                  onTap: () => Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                        builder: (_) => const ProjectsScreen()),
-                                  ),
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: _Bouncy(
-                                child: _QuickActionCard(
-                                  title: "Resume",
-                                  icon: Icons.description_outlined,
-                                  color: AppTheme.primaryColor,
-                                  onTap: () => Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                        builder: (_) =>
-                                            const ResumeUploadScreen()),
-                                  ),
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: _Bouncy(
-                                child: _QuickActionCard(
-                                  title: "Profile",
-                                  icon: Icons.person_outline_rounded,
-                                  color: AppTheme.primaryColor,
-                                  onTap: () => Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                        builder: (_) => const ProfileScreen()),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 24),
-                        // Mini Analytics Row
-                        Row(
-                          children: [
-                            Text(
-                              "PORTFOLIO INSIGHTS",
-                              style: GoogleFonts.inter(
-                                fontSize: 12,
-                                fontWeight: FontWeight.bold,
-                                color: AppTheme.textSecondary
-                                    .withValues(alpha: 0.5),
-                                letterSpacing: 1.2,
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Container(
-                                height: 1,
-                                color: Colors.white.withValues(alpha: 0.05),
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 16),
-                        _buildInsightsCard(),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-
-              const SliverToBoxAdapter(child: SizedBox(height: 32)),
-
-              // Content Management Header
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                  child: _StaggeredAnimate(
-                    delay: 1,
-                    child: Row(
-                      children: [
-                        Text(
-                          "CONTENT MANAGEMENT",
-                          style: GoogleFonts.inter(
-                            fontSize: 12,
-                            fontWeight: FontWeight.bold,
-                            color:
-                                AppTheme.textSecondary.withValues(alpha: 0.5),
-                            letterSpacing: 1.2,
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                            child: Container(
-                                height: 1,
-                                color: Colors.white.withValues(alpha: 0.05))),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-
-              const SliverToBoxAdapter(child: SizedBox(height: 20)),
-
-              // Content Items Grid
-              SliverPadding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                sliver: SliverGrid.count(
-                  crossAxisCount: 2,
-                  mainAxisSpacing: 16,
-                  crossAxisSpacing: 16,
-                  childAspectRatio: 1.1,
-                  children: [
-                    _buildAnimatedContentItem(
-                        0,
-                        "Hero Section",
-                        Icons.monitor_rounded,
-                        () => _navToEditor(context, 'Hero Section', 'hero')),
-                    _buildAnimatedContentItem(
-                        1,
-                        "About & Socials",
-                        Icons.person_outline_rounded,
-                        () =>
-                            _navToEditor(context, 'About & Socials', 'about')),
-                    _buildAnimatedContentItem(
-                        2,
-                        "Expertise",
-                        Icons.lightbulb_outline_rounded,
-                        () => _navToEditor(context, 'Expertise', 'expertise')),
-                    _buildAnimatedContentItem(
-                        3,
-                        "Skills",
-                        Icons.code_rounded,
-                        () => Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                                builder: (_) => const SkillsManagerScreen()))),
-                    _buildAnimatedContentItem(
-                        4,
-                        "Languages",
-                        Icons.translate_rounded,
-                        () => Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                                builder: (_) => const LanguageListScreen()))),
-                    _buildAnimatedContentItem(
-                        5,
-                        "Contact Info",
-                        Icons.email_outlined,
-                        () => _navToEditor(context, 'Contact Info', 'contact')),
-                    _buildAnimatedContentItem(6, "Navbar", Icons.menu_rounded,
-                        () => _navToEditor(context, 'Navbar', 'navbar')),
-                    _buildAnimatedContentItem(
-                        7,
-                        "Projects Page",
-                        Icons.work_outline_rounded,
-                        () => _navToEditor(
-                            context, 'Projects Page', 'projects_page')),
-                  ],
-                ),
-              ),
-
-              const SliverToBoxAdapter(child: SizedBox(height: 100)),
+              const SizedBox(width: 16),
             ],
           ),
+
+          // 2. Greeting & Identity
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 10, 20, 0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    _dateString.toUpperCase(),
+                    style: GoogleFonts.inter(
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                      color: AppTheme.textSecondary.withValues(alpha: 0.4),
+                      letterSpacing: 1.5,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    _greeting,
+                    style: GoogleFonts.outfit(
+                      fontSize: 18,
+                      color: AppTheme.textSecondary,
+                      fontWeight: FontWeight.w400,
+                    ),
+                  ),
+                  StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+                      stream: _service.streamCurrentUserProfile(),
+                      builder: (context, snapshot) {
+                        String name = 'User';
+                        if (snapshot.hasData && snapshot.data!.exists) {
+                          name = snapshot.data!.data()?['displayName'] ??
+                              snapshot.data!.data()?['username'] ??
+                              'User';
+                        }
+                        return Text(
+                          name,
+                          style: GoogleFonts.outfit(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 36,
+                            color: AppTheme.textPrimary,
+                            height: 1.1,
+                          ),
+                        );
+                      }),
+                ],
+              ),
+            ),
+          ),
+
+          // 3. Status Tile
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 24, 20, 0),
+              child: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+                  stream: _service.streamCurrentUserProfile(),
+                  builder: (context, snapshot) {
+                    String url = "https://atom.anithix.com";
+                    if (snapshot.hasData && snapshot.data!.exists) {
+                      url = snapshot.data!.data()?['publicBaseUrl'] ?? url;
+                    }
+                    String displayUrl =
+                        url.replaceFirst(RegExp(r'^https?://'), '');
+
+                    return _ActionPanel(
+                      title: "Live Portfolio",
+                      subtitle: displayUrl,
+                      icon: Icons.language_rounded,
+                      color: Colors.greenAccent,
+                      onTap: () => _launchURL(url),
+                      trailing: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: Colors.greenAccent.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text("OPEN",
+                            style: GoogleFonts.outfit(
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.greenAccent)),
+                      ),
+                    );
+                  }),
+            ),
+          ),
+
+          // 4. Analytics Section
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 32, 20, 0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    "ANALYTICS",
+                    style: GoogleFonts.inter(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w800,
+                      color: AppTheme.textSecondary.withValues(alpha: 0.35),
+                      letterSpacing: 1.5,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _MetricCard(
+                          label: "Projects",
+                          stream: _service.streamTotalProjectsCount(),
+                          icon: Icons.rocket_launch_rounded,
+                          color: AppTheme.primaryColor,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: _MetricCard(
+                          label: "Messages",
+                          stream: _service.streamTotalMessagesCount(),
+                          icon: Icons.chat_bubble_rounded,
+                          color: Colors.blueAccent,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: _MetricCard(
+                          label: "Visits",
+                          stream: _service.streamTotalVisitsCount(),
+                          icon: Icons.remove_red_eye_rounded,
+                          color: Colors.purpleAccent,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          // 5. Management Grid
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 32, 20, 0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    "QUICK ACTIONS",
+                    style: GoogleFonts.inter(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w800,
+                      color: AppTheme.textSecondary.withValues(alpha: 0.35),
+                      letterSpacing: 1.5,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  _ActionPanel(
+                    title: "Projects Hub",
+                    subtitle: "Manage your works portfolio",
+                    icon: Icons.grid_view_rounded,
+                    color: AppTheme.primaryColor,
+                    onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                            builder: (_) => const ProjectsScreen())),
+                  ),
+                  const SizedBox(height: 12),
+                  _ActionPanel(
+                    title: "Content Editor",
+                    subtitle: "Update site text & info",
+                    icon: Icons.edit_note_rounded,
+                    color: Colors.blueAccent,
+                    onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                            builder: (_) => const ContentManagementScreen())),
+                  ),
+                  const SizedBox(height: 12),
+                  _ActionPanel(
+                    title: "Resume & CV",
+                    subtitle: "Upload professional documents",
+                    icon: Icons.assignment_rounded,
+                    color: Colors.orangeAccent,
+                    onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                            builder: (_) => const ResumeUploadScreen())),
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          // 6. Highlight: Design Engine
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 32, 20, 0),
+              child: _FeaturedHighlightCard(
+                title: "Design Engine",
+                description: "Fine-tune your portfolio visual identity.",
+                icon: Icons.auto_awesome_rounded,
+                onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (_) => const DesignEngineScreen())),
+              ),
+            ),
+          ),
+
+          const SliverToBoxAdapter(child: SizedBox(height: 120)),
         ],
       ),
     );
   }
+}
 
-  Widget _buildAnimatedContentItem(
-      int index, String title, IconData icon, VoidCallback onTap) {
-    return _StaggeredAnimate(
-      delay: index + 2,
-      child: _Bouncy(
-        child: _ContentItem(
-          title: title,
-          icon: icon,
-          onTap: onTap,
+class _MetricCard extends StatelessWidget {
+  final String label;
+  final Stream<int> stream;
+  final IconData icon;
+  final Color color;
+
+  const _MetricCard({
+    required this.label,
+    required this.stream,
+    required this.icon,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 12),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.03),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+      ),
+      child: Column(
+        children: [
+          Icon(icon, color: color.withValues(alpha: 0.8), size: 20),
+          const SizedBox(height: 12),
+          StreamBuilder<int>(
+              stream: stream,
+              builder: (context, snapshot) {
+                int count = snapshot.data ?? 0;
+                return Text(
+                  count >= 1000
+                      ? "${(count / 1000).toStringAsFixed(1)}k"
+                      : count.toString(),
+                  style: GoogleFonts.outfit(
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                      color: AppTheme.textPrimary),
+                );
+              }),
+          Text(label.toUpperCase(),
+              style: GoogleFonts.inter(
+                  fontSize: 8,
+                  fontWeight: FontWeight.w900,
+                  color: AppTheme.textSecondary.withValues(alpha: 0.3))),
+        ],
+      ),
+    );
+  }
+}
+
+class _ActionPanel extends StatelessWidget {
+  final String title;
+  final String subtitle;
+  final IconData icon;
+  final Color color;
+  final VoidCallback onTap;
+  final Widget? trailing;
+
+  const _ActionPanel({
+    required this.title,
+    required this.subtitle,
+    required this.icon,
+    required this.color,
+    required this.onTap,
+    this.trailing,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return _Bouncy(
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.03),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+          ),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Icon(icon, color: color, size: 24),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(title,
+                        style: GoogleFonts.outfit(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: AppTheme.textPrimary)),
+                    Text(subtitle,
+                        style: GoogleFonts.inter(
+                            fontSize: 12,
+                            color:
+                                AppTheme.textSecondary.withValues(alpha: 0.6))),
+                  ],
+                ),
+              ),
+              trailing ??
+                  const Icon(Icons.chevron_right_rounded,
+                      color: Colors.white12),
+            ],
+          ),
         ),
       ),
     );
   }
+}
 
-  void _navToEditor(BuildContext context, String title, String docId) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => ContentEditorScreen(docId: docId, title: title),
+class _HeaderAction extends StatelessWidget {
+  final IconData icon;
+  final VoidCallback onTap;
+  final bool hasBadge;
+  final Stream<int>? stream;
+
+  const _HeaderAction(
+      {required this.icon,
+      required this.onTap,
+      this.hasBadge = false,
+      this.stream});
+
+  @override
+  Widget build(BuildContext context) {
+    return _Bouncy(
+      child: GestureDetector(
+        onTap: onTap,
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.05),
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+              ),
+              child: Icon(icon, color: Colors.white, size: 22),
+            ),
+            if (hasBadge && stream != null)
+              StreamBuilder<int>(
+                  stream: stream,
+                  builder: (context, snapshot) {
+                    if (!snapshot.hasData || snapshot.data == 0)
+                      return const SizedBox.shrink();
+                    return Positioned(
+                      top: 8,
+                      right: 8,
+                      child: Container(
+                          width: 10,
+                          height: 10,
+                          decoration: BoxDecoration(
+                              color: AppTheme.primaryColor,
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                  color: AppTheme.scaffoldBackgroundColor,
+                                  width: 2))),
+                    );
+                  }),
+          ],
+        ),
       ),
     );
   }
+}
 
-  Widget _buildInsightsCard() {
-    return GradientCard(
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
+class _FeaturedHighlightCard extends StatelessWidget {
+  final String title;
+  final String description;
+  final IconData icon;
+  final VoidCallback onTap;
+
+  const _FeaturedHighlightCard(
+      {required this.title,
+      required this.description,
+      required this.icon,
+      required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return _Bouncy(
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(32),
+            gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  AppTheme.primaryColor.withValues(alpha: 0.4),
+                  AppTheme.primaryColor.withValues(alpha: 0.1)
+                ]),
+            border:
+                Border.all(color: AppTheme.primaryColor.withValues(alpha: 0.2)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _buildStatItem("Leads", _service.streamMessages()),
-              _buildStatItem("Projects", _service.streamProjects()),
-              _buildStatItem(
-                  "Skills",
-                  _service.streamContent('skills').map((doc) {
-                    if (!doc.exists) return 0;
-                    final data = doc.data();
-                    if (data == null) return 0;
-                    int count = 0;
-                    data.forEach((key, value) {
-                      if (value is List) count += value.length;
-                    });
-                    return count;
-                  })),
+              Row(
+                children: [
+                  Icon(icon, color: Colors.black87, size: 24),
+                  const SizedBox(width: 12),
+                  Text(title,
+                      style: GoogleFonts.outfit(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w900,
+                          color: Colors.black87)),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Text(description,
+                  style: GoogleFonts.inter(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                      color: Colors.black87.withValues(alpha: 0.7))),
             ],
           ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildStatItem(String label, dynamic source) {
-    return StreamBuilder(
-      stream: source is Stream ? source : (source as Future).asStream(),
-      builder: (context, snapshot) {
-        String value = "0";
-        if (snapshot.hasData) {
-          if (snapshot.data is QuerySnapshot) {
-            value = (snapshot.data as QuerySnapshot).docs.length.toString();
-          } else if (snapshot.data is int) {
-            value = snapshot.data.toString();
-          }
-        }
-        return Column(
-          children: [
-            Text(
-              value,
-              style: GoogleFonts.outfit(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-                color: AppTheme.textPrimary,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              label.toUpperCase(),
-              style: GoogleFonts.inter(
-                fontSize: 10,
-                color: AppTheme.textSecondary,
-                fontWeight: FontWeight.bold,
-                letterSpacing: 1.0,
-              ),
-            ),
-          ],
-        );
-      },
-    );
-  }
-}
-
-class _QuickActionCard extends StatelessWidget {
-  final String title;
-  final IconData icon;
-  final Color color;
-  final VoidCallback onTap;
-
-  const _QuickActionCard({
-    required this.title,
-    required this.icon,
-    required this.color,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return GradientCard(
-      onTap: onTap,
-      padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 8),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.1),
-              shape: BoxShape.circle,
-              border: Border.all(
-                color: color.withValues(alpha: 0.2),
-                width: 1.5,
-              ),
-            ),
-            child: Icon(icon, color: color, size: 28),
-          ),
-          const SizedBox(height: 12),
-          Text(
-            title,
-            textAlign: TextAlign.center,
-            style: GoogleFonts.outfit(
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-              color: AppTheme.textPrimary,
-              height: 1.1,
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
 }
 
-class _ContentItem extends StatelessWidget {
-  final String title;
-  final IconData icon;
-  final VoidCallback onTap;
-
-  const _ContentItem({
-    required this.title,
-    required this.icon,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return GradientCard(
-      onTap: onTap,
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(icon,
-              color: AppTheme.textSecondary.withValues(alpha: 0.8), size: 36),
-          const SizedBox(height: 16),
-          Text(
-            title,
-            textAlign: TextAlign.center,
-            style: GoogleFonts.inter(
-              fontSize: 14,
-              fontWeight: FontWeight.w500,
-              color: AppTheme.textPrimary,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// Simple Fade-In-Up Animation Wrapper
-class _StaggeredAnimate extends StatefulWidget {
-  final Widget child;
-  final int delay;
-
-  const _StaggeredAnimate({required this.child, required this.delay});
-
-  @override
-  State<_StaggeredAnimate> createState() => _StaggeredAnimateState();
-}
-
-class _StaggeredAnimateState extends State<_StaggeredAnimate>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
-  late Animation<double> _opacity;
-  late Animation<Offset> _offset;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 600),
-    );
-
-    _opacity = Tween<double>(begin: 0, end: 1).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeOut),
-    );
-
-    _offset = Tween<Offset>(
-      begin: const Offset(0, 0.1),
-      end: Offset.zero,
-    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOut));
-
-    // Stagger start based on index
-    Future.delayed(Duration(milliseconds: widget.delay * 100), () {
-      if (mounted) _controller.forward();
-    });
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return FadeTransition(
-      opacity: _opacity,
-      child: SlideTransition(
-        position: _offset,
-        child: widget.child,
-      ),
-    );
-  }
-}
-
-// Bouncy Wrapper for Touch Feedback
 class _Bouncy extends StatefulWidget {
   final Widget child;
-
-  const _Bouncy({
-    required this.child,
-  });
-
+  const _Bouncy({required this.child});
   @override
   State<_Bouncy> createState() => _BouncyState();
 }
@@ -753,10 +607,9 @@ class _BouncyState extends State<_Bouncy> with SingleTickerProviderStateMixin {
   void initState() {
     super.initState();
     _controller = AnimationController(
-        vsync: this, duration: const Duration(milliseconds: 100));
-    _scale = Tween<double>(begin: 1.0, end: 0.95).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
-    );
+        vsync: this, duration: const Duration(milliseconds: 150));
+    _scale = Tween<double>(begin: 1.0, end: 0.96).animate(
+        CurvedAnimation(parent: _controller, curve: Curves.easeOutBack));
   }
 
   @override
@@ -770,14 +623,11 @@ class _BouncyState extends State<_Bouncy> with SingleTickerProviderStateMixin {
     return GestureDetector(
       onTapDown: (_) {
         _controller.forward();
-        SoundService.playClick();
+        SoundService.playTap();
       },
       onTapUp: (_) => _controller.reverse(),
       onTapCancel: () => _controller.reverse(),
-      child: ScaleTransition(
-        scale: _scale,
-        child: widget.child,
-      ),
+      child: ScaleTransition(scale: _scale, child: widget.child),
     );
   }
 }

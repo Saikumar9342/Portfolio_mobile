@@ -256,6 +256,40 @@ class FirestoreService {
     }, SetOptions(merge: true));
   }
 
+  // --- Design Settings ---
+
+  Stream<DocumentSnapshot<Map<String, dynamic>>> streamDesignSettings() {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) throw Exception("User not authenticated");
+
+    final isGlobalAdmin = user.email == _adminEmail;
+    final docRef = isGlobalAdmin
+        ? _db.collection('settings').doc('design')
+        : _db
+            .collection('users')
+            .doc(user.uid)
+            .collection('settings')
+            .doc('design');
+
+    return docRef.snapshots();
+  }
+
+  Future<void> saveDesignSettings(Map<String, dynamic> data) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) throw Exception("User not authenticated");
+
+    final isGlobalAdmin = user.email == _adminEmail;
+    final docRef = isGlobalAdmin
+        ? _db.collection('settings').doc('design')
+        : _db
+            .collection('users')
+            .doc(user.uid)
+            .collection('settings')
+            .doc('design');
+
+    await docRef.set(data, SetOptions(merge: true));
+  }
+
   Future<void> setUsername(String input) async {
     final uid = _currentUid;
     if (uid == null) throw Exception("Please sign in again.");
@@ -454,7 +488,6 @@ class FirestoreService {
       return _db
           .collection('messages')
           .where('status', isEqualTo: 'unread')
-          .where('targetUserId', isEqualTo: user.uid)
           .snapshots()
           .map((snap) => snap.docs.length);
     }
@@ -467,6 +500,41 @@ class FirestoreService {
         .where('status', isEqualTo: 'unread')
         .snapshots()
         .map((snap) => snap.docs.length);
+  }
+
+  Stream<int> streamTotalProjectsCount() {
+    return streamProjects().map((snap) => snap.docs.length);
+  }
+
+  Stream<int> streamTotalMessagesCount() {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return Stream.value(0);
+
+    if (user.email == _adminEmail) {
+      return _db
+          .collection('messages')
+          .where('targetUserId', isEqualTo: user.uid)
+          .snapshots()
+          .map((snap) => snap.docs.length);
+    }
+    return _db
+        .collection('users')
+        .doc(user.uid)
+        .collection('messages')
+        .snapshots()
+        .map((snap) => snap.docs.length);
+  }
+
+  Stream<int> streamTotalVisitsCount() {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return Stream.value(0);
+
+    // We no longer read global analytics for the dashboard,
+    // we want the user's specific portfolio visits.
+    return _currentUserDoc.snapshots().map((snap) {
+      if (!snap.exists) return 0;
+      return snap.data()?['totalVisits'] ?? 0;
+    });
   }
 
   Future<void> resetUrlSettings() async {
