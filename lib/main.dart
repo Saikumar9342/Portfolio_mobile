@@ -11,6 +11,7 @@ import 'services/notification_service.dart';
 import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -21,6 +22,12 @@ void main() async {
     await Firebase.initializeApp(
         options: DefaultFirebaseOptions.currentPlatform);
     debugPrint("--- FIREBASE INITIALIZED ---");
+
+    // Enable True Offline Support
+    FirebaseFirestore.instance.settings = const Settings(
+      persistenceEnabled: true,
+      cacheSizeBytes: 50 * 1024 * 1024, // 50MB
+    );
 
     // Initialize Analytics and Crashlytics
     await FirebaseAnalytics.instance.logAppOpen();

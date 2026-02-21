@@ -112,13 +112,17 @@ class ActionDialog extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 12),
-            Text(
-              message,
-              textAlign: TextAlign.center,
-              style: GoogleFonts.inter(
-                fontSize: 16,
-                color: AppTheme.textSecondary,
-                height: 1.5,
+            Flexible(
+              child: SingleChildScrollView(
+                child: Text(
+                  message,
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.inter(
+                    fontSize: 16,
+                    color: AppTheme.textSecondary,
+                    height: 1.5,
+                  ),
+                ),
               ),
             ),
             const SizedBox(height: 32),

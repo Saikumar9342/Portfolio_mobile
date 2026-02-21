@@ -15,7 +15,6 @@ import 'package:fl_chart/fl_chart.dart';
 import '../services/notification_service.dart';
 import '../services/sound_service.dart';
 import 'dart:async';
-import 'package:url_launcher/url_launcher.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -67,17 +66,6 @@ class _HomeScreenState extends State<HomeScreen> {
     _notificationSubscription?.cancel();
     _scrollController.dispose();
     super.dispose();
-  }
-
-  void _launchURL(String url) async {
-    final Uri uri = Uri.parse(url);
-    try {
-      if (await canLaunchUrl(uri)) {
-        await launchUrl(uri, mode: LaunchMode.externalApplication);
-      }
-    } catch (e) {
-      debugPrint("Could not launch $url: $e");
-    }
   }
 
   String get _greeting {
@@ -197,10 +185,9 @@ class _HomeScreenState extends State<HomeScreen> {
               child: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
                   stream: _service.streamCurrentUserProfile(),
                   builder: (context, snapshot) {
-                    String url = "https://atom.anithix.com";
-                    if (snapshot.hasData && snapshot.data!.exists) {
-                      url = snapshot.data!.data()?['publicBaseUrl'] ?? url;
-                    }
+                    final data = snapshot.data?.data() ?? {};
+                    final url = _service.buildPublicPortfolioUrl(data);
+
                     String displayUrl =
                         url.replaceFirst(RegExp(r'^https?://'), '');
 
@@ -209,7 +196,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       subtitle: displayUrl,
                       icon: Icons.language_rounded,
                       color: Colors.greenAccent,
-                      onTap: () => _launchURL(url),
+                      onTap: () => _service.launchURL(url),
                       trailing: Container(
                         padding: const EdgeInsets.symmetric(
                             horizontal: 10, vertical: 4),

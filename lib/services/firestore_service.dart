@@ -2,6 +2,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter/foundation.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class FirestoreService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
@@ -606,6 +607,34 @@ class FirestoreService {
       'fcmToken': FieldValue.delete(),
       'fcmTokens': FieldValue.delete(),
     }).catchError((_) {});
+  }
+
+  String buildPublicPortfolioUrl(Map<String, dynamic> data) {
+    final uid = data['uid'] ?? FirebaseAuth.instance.currentUser?.uid ?? '';
+    final username = data['username'] as String?;
+    final customDomain = data['customDomain'] as String?;
+    final baseUrl = data['publicBaseUrl'] as String? ?? _defaultPublicBaseUrl;
+
+    if (customDomain != null && customDomain.trim().isNotEmpty) {
+      return 'https://${customDomain.trim().toLowerCase()}';
+    }
+
+    final base = baseUrl.trim().replaceAll(RegExp(r'/+$'), '');
+    if (username != null && username.trim().isNotEmpty) {
+      return '$base/p/${username.trim().toLowerCase()}';
+    }
+    return '$base/p/$uid';
+  }
+
+  Future<void> launchURL(String url) async {
+    final Uri uri = Uri.parse(url);
+    try {
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+      }
+    } catch (e) {
+      debugPrint("Could not launch $url: $e");
+    }
   }
 
   // --- Message Management ---

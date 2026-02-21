@@ -117,6 +117,14 @@ class ContentManagementScreen extends StatelessWidget {
                                     _navToEditor(context, 'Navbar', 'navbar')),
                             _buildItem(
                               context,
+                              "SEO & Meta Tags",
+                              "Enhance your search visibility and link previews.",
+                              Icons.travel_explore_rounded,
+                              () =>
+                                  _navToEditor(context, 'SEO Settings', 'seo'),
+                            ),
+                            _buildItem(
+                              context,
                               "Projects Page",
                               "Configure the dedicated projects gallery.",
                               Icons.work_outline_rounded,

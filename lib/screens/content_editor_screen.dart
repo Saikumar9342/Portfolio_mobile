@@ -8,6 +8,7 @@ import '../theme/app_theme.dart';
 import '../widgets/custom_text_field.dart';
 import '../widgets/primary_button.dart';
 import '../widgets/action_dialog.dart';
+import '../services/ai_service.dart';
 
 enum DataType { string, stringList, objectList, json, image }
 
@@ -227,6 +228,13 @@ class _ContentEditorScreenState extends State<ContentEditorScreen> {
   // Same logic as before for default data
   Map<String, dynamic> _getDefaultData(String docId) {
     switch (docId) {
+      case 'seo':
+        return {
+          'seoTitle': 'My Portfolio',
+          'seoDescription': 'A professional portfolio.',
+          'ogImage':
+              '' // Empty matches the 'image' data type dynamically if the key has "image"
+        };
       case 'hero':
         return {
           'title': 'Your Title',
@@ -728,7 +736,7 @@ class _ContentEditorScreenState extends State<ContentEditorScreen> {
       );
     }
 
-    return CustomTextField(
+    final textField = CustomTextField(
       label: key.toUpperCase(),
       controller: field.controller,
       isMultiline: isMultiline,
@@ -746,6 +754,79 @@ class _ContentEditorScreenState extends State<ContentEditorScreen> {
         return null;
       },
     );
+
+    if (isMultiline && field.type == DataType.string) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          textField,
+          const SizedBox(height: 8),
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton.icon(
+              onPressed: () async {
+                final currentText = field.controller.text.trim();
+                if (currentText.isEmpty) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                        content:
+                            Text("Please enter some text first to enhance.")),
+                  );
+                  return;
+                }
+
+                showDialog(
+                  context: context,
+                  barrierDismissible: false,
+                  builder: (ctx) => const Center(
+                    child:
+                        CircularProgressIndicator(color: AppTheme.primaryColor),
+                  ),
+                );
+
+                try {
+                  final enhancedText =
+                      await AIService().enhanceText(currentText, key);
+                  if (mounted) Navigator.pop(context); // close dialog
+                  if (enhancedText != null && mounted) {
+                    _setFieldText(field, enhancedText);
+                    _markDirty();
+                  }
+                } catch (e) {
+                  if (mounted) {
+                    Navigator.pop(context); // close dialog
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                          content: Text(e.toString()),
+                          backgroundColor: Colors.redAccent),
+                    );
+                  }
+                }
+              },
+              icon: const Icon(Icons.auto_awesome,
+                  color: AppTheme.primaryColor, size: 18),
+              label: Text(
+                "AI Enhance",
+                style: GoogleFonts.inter(
+                  color: AppTheme.primaryColor,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 12,
+                ),
+              ),
+              style: TextButton.styleFrom(
+                backgroundColor: AppTheme.primaryColor.withValues(alpha: 0.1),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12)),
+              ),
+            ),
+          )
+        ],
+      );
+    }
+
+    return textField;
   }
 
   Widget _buildObjectListEditor(String key, FieldData field) {

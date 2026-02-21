@@ -167,8 +167,16 @@ class _InquiriesScreenState extends State<InquiriesScreen> {
     );
   }
 
-  void _deleteInquiry(Inquiry inquiry) {
-    _service.deleteMessage(inquiry.id);
+  Future<void> _deleteInquiry(Inquiry inquiry) async {
+    try {
+      await _service.deleteMessage(inquiry.id);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Failed to delete message: $e")),
+        );
+      }
+    }
   }
 
   void _replyViaEmail(Inquiry inquiry) async {
@@ -367,7 +375,9 @@ class _InquiryCard extends StatelessWidget {
 
   void _showDetail(BuildContext context) {
     if (inquiry.status == 'unread') {
-      FirestoreService().markMessageAsRead(inquiry.id);
+      FirestoreService().markMessageAsRead(inquiry.id).catchError((e) {
+        debugPrint("Error marking message as read: $e");
+      });
     }
 
     showModalBottomSheet(

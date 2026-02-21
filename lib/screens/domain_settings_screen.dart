@@ -1,9 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:url_launcher/url_launcher.dart';
 import '../services/firestore_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/action_dialog.dart';
@@ -43,30 +41,6 @@ class _DomainSettingsScreenState extends State<DomainSettingsScreen> {
     );
   }
 
-  Future<void> _openLink(String value) async {
-    final uri = Uri.parse(value);
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
-    }
-  }
-
-  String _buildPublicLink({
-    required String baseUrl,
-    required String uid,
-    String? username,
-    String? customDomain,
-  }) {
-    if (customDomain != null && customDomain.trim().isNotEmpty) {
-      return 'https://${customDomain.trim().toLowerCase()}';
-    }
-
-    final base = baseUrl.trim().replaceAll(RegExp(r'/+$'), '');
-    if (username != null && username.trim().isNotEmpty) {
-      return '$base/p/${username.trim().toLowerCase()}';
-    }
-    return '$base/p/$uid';
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -89,9 +63,6 @@ class _DomainSettingsScreenState extends State<DomainSettingsScreen> {
           }
 
           final data = snapshot.data!.data() ?? <String, dynamic>{};
-          final uid = (data['uid'] as String?) ??
-              FirebaseAuth.instance.currentUser?.uid ??
-              '';
           final username = (data['username'] as String?) ?? '';
           final customDomain = (data['customDomain'] as String?) ?? '';
           final baseUrl =
@@ -107,12 +78,7 @@ class _DomainSettingsScreenState extends State<DomainSettingsScreen> {
             _baseUrlController.text = baseUrl;
           }
 
-          final publicLink = _buildPublicLink(
-            baseUrl: baseUrl,
-            uid: uid,
-            username: username,
-            customDomain: customDomain,
-          );
+          final publicLink = _service.buildPublicPortfolioUrl(data);
           final customLink =
               customDomain.isNotEmpty ? 'https://$customDomain' : '';
 
@@ -516,7 +482,7 @@ class _DomainSettingsScreenState extends State<DomainSettingsScreen> {
               const SizedBox(width: 10),
               Expanded(
                 child: ElevatedButton.icon(
-                  onPressed: () => _openLink(value),
+                  onPressed: () => _service.launchURL(value),
                   icon: const Icon(Icons.open_in_new_rounded, size: 16),
                   label: const Text("OPEN"),
                   style: ElevatedButton.styleFrom(

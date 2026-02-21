@@ -14,7 +14,7 @@ class GeminiResumeParser implements ResumeParserService {
   final String apiKey;
 
   static const List<String> _modelPriority = [
-    'gemini-2.5-flash',
+    'gemini-2.0-flash',
     'gemini-flash-latest',
     'gemini-1.5-flash',
   ];
@@ -309,7 +309,6 @@ Return ONLY valid JSON. No markdown. Use ONLY real data from the resume above â€
           {'role': 'user', 'content': combinedPrompt}
         ],
         'temperature': 0.1,
-        'response_format': {'type': 'json_object'}
       }),
     );
 
