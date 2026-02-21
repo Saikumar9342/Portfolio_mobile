@@ -40,25 +40,13 @@ class _HomeScreenState extends State<HomeScreen> {
       }
     });
 
-    _initializeNotifications();
+    _notificationSubscription = NotificationService.onMessage.listen((message) {
+      if (mounted) {
+        debugPrint(
+            "Message received in foreground: ${message.notification?.title}");
+      }
+    });
     _service.ensureUserProfile();
-  }
-
-  Future<void> _initializeNotifications() async {
-    try {
-      final notificationService = NotificationService();
-      await notificationService.initialize();
-
-      _notificationSubscription =
-          NotificationService.onMessage.listen((message) {
-        if (mounted) {
-          debugPrint(
-              "Message received in foreground: ${message.notification?.title}");
-        }
-      });
-    } catch (e) {
-      debugPrint("Error initializing notifications: $e");
-    }
   }
 
   @override
