@@ -20,9 +20,7 @@ class AppConfig {
       return defineValue;
     }
     final envValue = dotenv.env[dotenvKey];
-    if (envValue != null &&
-        envValue.isNotEmpty &&
-        !_isPlaceholder(envValue)) {
+    if (envValue != null && envValue.isNotEmpty && !_isPlaceholder(envValue)) {
       return envValue;
     }
     return fallback;
@@ -40,6 +38,10 @@ class AppConfig {
       String.fromEnvironment('PREMIUM_MONTHLY_PAYMENT_URL', defaultValue: '');
   static const String _premiumYearlyPaymentUrlDefine =
       String.fromEnvironment('PREMIUM_YEARLY_PAYMENT_URL', defaultValue: '');
+  static const String _razorpayApiKeyDefine =
+      String.fromEnvironment('RAZORPAY_API_KEY', defaultValue: '');
+  static const String _webBaseUrlDefine =
+      String.fromEnvironment('WEB_BASE_URL', defaultValue: '');
 
   static String get geminiApiKey => _pick(
         defineValue: _geminiDefine,
@@ -74,6 +76,17 @@ class AppConfig {
         dotenvKey: 'PREMIUM_YEARLY_PAYMENT_URL',
       );
 
+  static String get razorpayApiKey => _pick(
+        defineValue: _razorpayApiKeyDefine,
+        dotenvKey: 'RAZORPAY_API_KEY',
+      );
+
+  static String get webBaseUrl => _pick(
+        defineValue: _webBaseUrlDefine,
+        dotenvKey: 'WEB_BASE_URL',
+        fallback: 'https://atom.anithix.com',
+      );
+
   static void debugPrintConfigSource() {
     if (!kDebugMode) return;
     debugPrint(
@@ -93,6 +106,12 @@ class AppConfig {
     );
     debugPrint(
       '[AppConfig] Using dart-define for PREMIUM_YEARLY_PAYMENT_URL: ${_premiumYearlyPaymentUrlDefine.isNotEmpty}',
+    );
+    debugPrint(
+      '[AppConfig] Using dart-define for RAZORPAY_API_KEY: ${_razorpayApiKeyDefine.isNotEmpty}',
+    );
+    debugPrint(
+      '[AppConfig] Using dart-define for WEB_BASE_URL: ${_webBaseUrlDefine.isNotEmpty}',
     );
   }
 }

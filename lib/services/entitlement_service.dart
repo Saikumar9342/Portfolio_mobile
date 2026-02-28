@@ -25,7 +25,19 @@ class EntitlementService {
   static const Set<String> _activePremiumStatuses = {
     'active',
     'trialing',
+    'paid',
+    'completed',
+    'success',
   };
+
+  bool _isPremiumFromBilling(Map<String, dynamic> data) {
+    final plan = (data['plan'] ?? '').toString().toLowerCase();
+    final status = (data['status'] ?? '').toString().toLowerCase();
+    final isPremiumFlag = data['isPremium'] == true;
+    final hasPremiumPlan = plan == 'premium' || plan.contains('premium');
+    final hasActiveStatus = _activePremiumStatuses.contains(status);
+    return isPremiumFlag || (hasPremiumPlan && hasActiveStatus);
+  }
 
   Future<EntitlementState> getCurrentEntitlement() async {
     final user = FirebaseAuth.instance.currentUser;
@@ -60,8 +72,7 @@ class EntitlementService {
         final data = billingSnap.data() ?? {};
         final plan = (data['plan'] ?? 'free').toString().toLowerCase();
         final status = (data['status'] ?? 'inactive').toString().toLowerCase();
-        final isPremium =
-            plan == 'premium' && _activePremiumStatuses.contains(status);
+        final isPremium = _isPremiumFromBilling(data);
         return EntitlementState(
           isAdmin: false,
           isPremium: isPremium,
@@ -100,4 +111,3 @@ class EntitlementService {
     return false;
   }
 }
-
