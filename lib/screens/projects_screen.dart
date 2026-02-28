@@ -10,6 +10,8 @@ import '../widgets/custom_text_field.dart';
 import '../widgets/primary_button.dart';
 import '../widgets/gradient_card.dart';
 import '../widgets/action_dialog.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import '../widgets/tutorial_overlay.dart';
 
 class ProjectsScreen extends StatefulWidget {
   final String? languageCode;
@@ -23,6 +25,39 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
   final FirestoreService _service = FirestoreService();
   final Set<String> _selectedProjectIds = {};
   bool _isSelectionMode = false;
+  bool _showTutorial = false;
+  final GlobalKey<TutorialOverlayState> _tutorialKey = GlobalKey();
+  final GlobalKey _addProjectKey = GlobalKey();
+
+  @override
+  void initState() {
+    super.initState();
+    _checkTutorial();
+  }
+
+  Future<void> _checkTutorial() async {
+    final prefs = await SharedPreferences.getInstance();
+    final List<String> completedKeys =
+        prefs.getStringList('tutorial_completed_task_keys') ?? [];
+
+    if (!completedKeys.contains('projects') && mounted) {
+      setState(() => _showTutorial = true);
+    }
+  }
+
+  void _dismissTutorial() async {
+    final prefs = await SharedPreferences.getInstance();
+    final List<String> completedKeys =
+        prefs.getStringList('tutorial_completed_task_keys') ?? [];
+
+    if (!completedKeys.contains('projects')) {
+      completedKeys.add('projects');
+      await prefs.setStringList('tutorial_completed_task_keys', completedKeys);
+      await prefs.setInt('tutorial_tasks_completed', completedKeys.length);
+    }
+
+    if (mounted) setState(() => _showTutorial = false);
+  }
 
   void _enterSelectionMode(String docId) {
     setState(() {
@@ -61,7 +96,6 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
       type: ActionDialogType.danger,
       onConfirm: () async {
         final idsToDelete = List<String>.from(_selectedProjectIds);
-        // Show loading or just process
         for (final id in idsToDelete) {
           await _service.deleteProject(id, languageCode: widget.languageCode);
         }
@@ -82,15 +116,37 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    return Stack(
+      children: [
+        _buildScaffold(context),
+        if (_showTutorial)
+          Positioned.fill(
+            child: TutorialOverlay(
+              key: _tutorialKey,
+              currentScreen: 'projects',
+              onDismiss: _dismissTutorial,
+              targets: {
+                'add_project': _addProjectKey,
+              },
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildScaffold(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
-    // Hardcoded Admin Email for Legacy Data Access
     const adminEmail = "pasumarthisaikumar6266@gmail.com";
 
     return Scaffold(
       backgroundColor: AppTheme.scaffoldBackgroundColor,
       body: CustomScrollView(
         slivers: [
-          SliverAppBar.large(
+          SliverAppBar(
+            floating: true,
+            pinned: true,
+            snap: true,
+            centerTitle: false,
             title: Text(
               _isSelectionMode
                   ? '${_selectedProjectIds.length} Selected'
@@ -114,14 +170,31 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
                 )
               else
                 IconButton(
+                  key: _addProjectKey,
                   icon: const Icon(Icons.add_circle_outline,
                       size: 32, color: AppTheme.primaryColor),
-                  onPressed: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                        builder: (_) => ProjectEditorScreen(
-                            languageCode: widget.languageCode)),
-                  ),
+                  onPressed: () {
+                    if (_showTutorial) {
+                      _tutorialKey.currentState?.completeStep('add_project');
+                      Future.delayed(const Duration(milliseconds: 500), () {
+                        if (context.mounted) {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                                builder: (_) => ProjectEditorScreen(
+                                    languageCode: widget.languageCode)),
+                          );
+                        }
+                      });
+                    } else {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                            builder: (_) => ProjectEditorScreen(
+                                languageCode: widget.languageCode)),
+                      );
+                    }
+                  },
                 ),
               const SizedBox(width: 16),
             ],
@@ -140,23 +213,16 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
                 );
               }
 
-              // Filter docs based on ownership or legacy admin access
               final allDocs = snapshot.data!.docs;
               final docs = allDocs.where((doc) {
                 final data = doc.data() as Map<String, dynamic>;
                 final docUserId = data['userId'];
-
-                // 1. If project has an owner, only show if it matches current user
                 if (docUserId != null) {
                   return docUserId == user?.uid;
                 }
-
-                // 2. If project has NO owner (Legacy), only show to the specific Admin Email
-                //    This prevents random new users from seeing old admin data.
                 if (user?.email == adminEmail) {
                   return true;
                 }
-
                 return false;
               }).toList();
 
@@ -339,7 +405,7 @@ class _ProjectCard extends StatelessWidget {
                                   color: AppTheme.textPrimary),
                             ),
                           ),
-                          if (!isSelected) // Hide individual delete if selecting
+                          if (!isSelected)
                             IconButton(
                               icon: const Icon(Icons.delete_outline,
                                   color: AppTheme.errorColor),
@@ -546,7 +612,6 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
       _loadBaseProjectData();
     }
 
-    // Add listeners to track changes
     void setDirty() {
       if (!_isDirty) setState(() => _isDirty = true);
     }
@@ -748,8 +813,6 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
                   controller: _techStackController,
                   hint: "Flutter, Firebase, React..."),
               const SizedBox(height: 20),
-
-              // Image Upload Section
               Text("PROJECT COVER",
                   style: GoogleFonts.inter(
                       fontSize: 14,
@@ -759,7 +822,6 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
               Builder(builder: (context) {
                 final isDefaultLanguage =
                     widget.languageCode == null || widget.languageCode == 'en';
-
                 if (!isDefaultLanguage) {
                   return Container(
                     padding: const EdgeInsets.all(16),
@@ -801,7 +863,6 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
                     ),
                   );
                 }
-
                 return Hero(
                   tag: widget.docId != null
                       ? 'project_image_${widget.docId}'
@@ -865,7 +926,6 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
                       child: const Text("Remove Image",
                           style: TextStyle(color: AppTheme.errorColor))),
                 ),
-
               const SizedBox(height: 20),
               CustomTextField(
                   label: "LIVE LINK",
@@ -878,7 +938,6 @@ class _ProjectEditorScreenState extends State<ProjectEditorScreen> {
                   controller: _githubLinkController,
                   hint: "https://github.com/...",
                   prefixIcon: Icons.code),
-
               const SizedBox(height: 40),
               PrimaryButton(
                 text: "SAVE PROJECT",

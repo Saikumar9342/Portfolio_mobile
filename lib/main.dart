@@ -12,6 +12,8 @@ import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'screens/onboarding_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -57,6 +59,10 @@ class MyApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       theme: AppTheme.darkTheme,
       home: const _AuthWrapper(),
+      routes: {
+        '/home': (context) => const HomeScreen(),
+        '/login': (context) => const LoginScreen(),
+      },
     );
   }
 }
@@ -70,15 +76,27 @@ class _AuthWrapper extends StatefulWidget {
 
 class _AuthWrapperState extends State<_AuthWrapper> {
   bool _showSplash = true;
+  bool _onboardingComplete = false;
+  String? _lastUid;
 
   @override
   void initState() {
     super.initState();
+    _checkOnboarding();
     Future.delayed(const Duration(seconds: 5), () {
       if (mounted) {
         setState(() => _showSplash = false);
       }
     });
+  }
+
+  Future<void> _checkOnboarding() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (mounted) {
+      setState(() {
+        _onboardingComplete = prefs.getBool('onboarding_complete') ?? false;
+      });
+    }
   }
 
   @override
@@ -101,12 +119,73 @@ class _AuthWrapperState extends State<_AuthWrapper> {
             ),
           );
         }
-        if (snapshot.data == null) {
+
+        final user = snapshot.data;
+        if (user == null) {
+          _lastUid = null;
           return const LoginScreen();
         }
-        return const HomeScreen();
+
+        // If user changed, re-check onboarding status for this account
+        if (_lastUid != user.uid) {
+          _lastUid = user.uid;
+          _onboardingComplete = false; // Reset until proven otherwise
+          _checkOnboarding();
+        }
+
+        // 1. If we already know onboarding is complete from local storage
+        if (_onboardingComplete) {
+          return const HomeScreen();
+        }
+
+        // 2. If not complete in local storage, check Firestore to see if this is a returning user
+        // who just reinstalled the app or cleared data.
+        return FutureBuilder<DocumentSnapshot>(
+          future: FirebaseFirestore.instance
+              .collection('users')
+              .doc(user.uid)
+              .get(),
+          builder: (context, docSnapshot) {
+            if (docSnapshot.connectionState == ConnectionState.waiting) {
+              return const Scaffold(
+                backgroundColor: AppTheme.scaffoldBackgroundColor,
+                body: Center(
+                  child:
+                      CircularProgressIndicator(color: AppTheme.primaryColor),
+                ),
+              );
+            }
+
+            final exists = docSnapshot.hasData && docSnapshot.data!.exists;
+
+            if (exists) {
+              // RETURNING USER: Doc exists in Firestore, so they've been here before.
+              // We skip onboarding but must update local storage so we don't check again.
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                _skipOnboardingForExisting();
+              });
+              return const HomeScreen();
+            } else {
+              // NEW USER: No doc in Firestore.
+              return const OnboardingScreen();
+            }
+          },
+        );
       },
     );
+  }
+
+  Future<void> _skipOnboardingForExisting() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('onboarding_complete', true);
+    // Note: We DON'T set tutorial_complete here for existing users if we want them to have the option
+    // But per previous requirement, we did. Let's keep it but allow explicit re-enable.
+    await prefs.setBool('tutorial_complete', true);
+    if (mounted && !_onboardingComplete) {
+      setState(() {
+        _onboardingComplete = true;
+      });
+    }
   }
 }
 

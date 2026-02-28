@@ -15,6 +15,8 @@ import 'package:fl_chart/fl_chart.dart';
 import '../services/notification_service.dart';
 import '../services/sound_service.dart';
 import 'dart:async';
+import 'package:shared_preferences/shared_preferences.dart';
+import '../widgets/tutorial_overlay.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -28,6 +30,14 @@ class _HomeScreenState extends State<HomeScreen> {
   final FirestoreService _service = FirestoreService();
   bool _isScrolled = false;
   StreamSubscription? _notificationSubscription;
+  Timer? _tutorialCheckTimer;
+  bool _showTutorial = false;
+  final GlobalKey<TutorialOverlayState> _tutorialKey = GlobalKey();
+
+  // Tutorial Discovery Keys
+  final GlobalKey _projectsKey = GlobalKey();
+  final GlobalKey _designKey = GlobalKey();
+  final GlobalKey _resumeKey = GlobalKey();
 
   @override
   void initState() {
@@ -47,13 +57,70 @@ class _HomeScreenState extends State<HomeScreen> {
       }
     });
     _service.ensureUserProfile();
+    _checkTutorial();
+    // Start a periodic timer to re-enable tutorial if needed
+    _tutorialCheckTimer = Timer.periodic(const Duration(minutes: 1), (timer) {
+      _checkTutorial();
+    });
   }
 
   @override
   void dispose() {
     _notificationSubscription?.cancel();
+    _tutorialCheckTimer?.cancel();
     _scrollController.dispose();
     super.dispose();
+  }
+
+  Future<void> _checkTutorial() async {
+    final prefs = await SharedPreferences.getInstance();
+    final bool isPermanentlyComplete =
+        prefs.getBool('tutorial_permanently_complete') ?? false;
+    if (isPermanentlyComplete) return;
+
+    final List<String> completedKeys =
+        prefs.getStringList('tutorial_completed_task_keys') ?? [];
+    final int completedTasks = completedKeys.length;
+    final String? dismissedAtStr = prefs.getString('tutorial_dismissed_at');
+
+    bool shouldShow = false;
+
+    if (completedTasks < 3) {
+      // If tasks not done, check if it's been at least 2 minutes since last dismiss
+      if (dismissedAtStr == null) {
+        shouldShow = true;
+      } else {
+        final dismissedAt = DateTime.parse(dismissedAtStr);
+        final difference = DateTime.now().difference(dismissedAt);
+        if (difference.inMinutes >= 2) {
+          shouldShow = true;
+        }
+      }
+    } else {
+      // 3 or more tasks done, mark as permanently complete if it wasn't already
+      await prefs.setBool('tutorial_permanently_complete', true);
+    }
+
+    if (shouldShow && !_showTutorial) {
+      if (mounted) setState(() => _showTutorial = true);
+    }
+  }
+
+  void _dismissTutorial() async {
+    final prefs = await SharedPreferences.getInstance();
+    final List<String> completedKeys =
+        prefs.getStringList('tutorial_completed_task_keys') ?? [];
+    final int completedTasks = completedKeys.length;
+
+    if (completedTasks >= 3) {
+      await prefs.setBool('tutorial_permanently_complete', true);
+    } else {
+      // Just snooze it
+      await prefs.setString(
+          'tutorial_dismissed_at', DateTime.now().toIso8601String());
+    }
+
+    if (mounted) setState(() => _showTutorial = false);
   }
 
   String get _greeting {
@@ -70,260 +137,335 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppTheme.scaffoldBackgroundColor,
-      body: CustomScrollView(
-        controller: _scrollController,
-        physics: const BouncingScrollPhysics(),
-        slivers: [
-          // 1. Clean Professional Header
-          SliverAppBar(
-            pinned: true,
-            floating: false,
-            backgroundColor: AppTheme.scaffoldBackgroundColor
-                .withValues(alpha: _isScrolled ? 0.9 : 0),
-            elevation: 0,
-            centerTitle: false,
-            title: Row(
-              children: [
-                const BrandLogo(size: 28),
-                const SizedBox(width: 10),
-                Text(
-                  "Atom",
-                  style: GoogleFonts.outfit(
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: 0.5,
-                    fontSize: 22,
-                    color: AppTheme.textPrimary,
+    return Stack(
+      children: [
+        Scaffold(
+          backgroundColor: AppTheme.scaffoldBackgroundColor,
+          body: CustomScrollView(
+            controller: _scrollController,
+            physics: const BouncingScrollPhysics(),
+            slivers: [
+              // 1. Clean Professional Header
+              SliverAppBar(
+                pinned: true,
+                floating: false,
+                backgroundColor: AppTheme.scaffoldBackgroundColor
+                    .withValues(alpha: _isScrolled ? 0.9 : 0),
+                elevation: 0,
+                centerTitle: false,
+                title: Row(
+                  children: [
+                    const BrandLogo(size: 28),
+                    const SizedBox(width: 10),
+                    Text(
+                      "Atom",
+                      style: GoogleFonts.outfit(
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 0.5,
+                        fontSize: 22,
+                        color: AppTheme.textPrimary,
+                      ),
+                    ),
+                  ],
+                ),
+                actions: [
+                  _HeaderAction(
+                    icon: Icons.notifications_none_rounded,
+                    onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                            builder: (_) => const InquiriesScreen())),
+                    hasBadge: true,
+                    stream: _service.streamUnreadMessagesCount(),
+                  ),
+                  const SizedBox(width: 8),
+                  _HeaderAction(
+                    icon: Icons.person_outline_rounded,
+                    onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                            builder: (_) => const ProfileScreen())),
+                  ),
+                  const SizedBox(width: 16),
+                ],
+              ),
+
+              // 2. Greeting & Identity
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 10, 20, 0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        _dateString.toUpperCase(),
+                        style: GoogleFonts.inter(
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                          color: AppTheme.textSecondary.withValues(alpha: 0.4),
+                          letterSpacing: 1.5,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        _greeting,
+                        style: GoogleFonts.outfit(
+                          fontSize: 18,
+                          color: AppTheme.textSecondary,
+                          fontWeight: FontWeight.w400,
+                        ),
+                      ),
+                      StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+                          stream: _service.streamCurrentUserProfile(),
+                          builder: (context, snapshot) {
+                            String name = 'User';
+                            if (snapshot.hasData && snapshot.data!.exists) {
+                              name = snapshot.data!.data()?['displayName'] ??
+                                  snapshot.data!.data()?['username'] ??
+                                  'User';
+                            }
+                            return Text(
+                              name,
+                              style: GoogleFonts.outfit(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 36,
+                                color: AppTheme.textPrimary,
+                                height: 1.1,
+                              ),
+                            );
+                          }),
+                    ],
                   ),
                 ),
-              ],
-            ),
-            actions: [
-              _HeaderAction(
-                icon: Icons.notifications_none_rounded,
-                onTap: () => Navigator.push(context,
-                    MaterialPageRoute(builder: (_) => const InquiriesScreen())),
-                hasBadge: true,
-                stream: _service.streamUnreadMessagesCount(),
               ),
-              const SizedBox(width: 8),
-              _HeaderAction(
-                icon: Icons.person_outline_rounded,
-                onTap: () => Navigator.push(context,
-                    MaterialPageRoute(builder: (_) => const ProfileScreen())),
-              ),
-              const SizedBox(width: 16),
-            ],
-          ),
 
-          // 2. Greeting & Identity
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(20, 10, 20, 0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    _dateString.toUpperCase(),
-                    style: GoogleFonts.inter(
-                      fontSize: 11,
-                      fontWeight: FontWeight.bold,
-                      color: AppTheme.textSecondary.withValues(alpha: 0.4),
-                      letterSpacing: 1.5,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    _greeting,
-                    style: GoogleFonts.outfit(
-                      fontSize: 18,
-                      color: AppTheme.textSecondary,
-                      fontWeight: FontWeight.w400,
-                    ),
-                  ),
-                  StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+              // 3. Status Tile
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 24, 20, 0),
+                  child: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
                       stream: _service.streamCurrentUserProfile(),
                       builder: (context, snapshot) {
-                        String name = 'User';
-                        if (snapshot.hasData && snapshot.data!.exists) {
-                          name = snapshot.data!.data()?['displayName'] ??
-                              snapshot.data!.data()?['username'] ??
-                              'User';
-                        }
-                        return Text(
-                          name,
-                          style: GoogleFonts.outfit(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 36,
-                            color: AppTheme.textPrimary,
-                            height: 1.1,
+                        final data = snapshot.data?.data() ?? {};
+                        final url = _service.buildPublicPortfolioUrl(data);
+
+                        String displayUrl =
+                            url.replaceFirst(RegExp(r'^https?://'), '');
+
+                        return _ActionPanel(
+                          title: "Live Portfolio",
+                          subtitle: displayUrl,
+                          icon: Icons.language_rounded,
+                          color: Colors.greenAccent,
+                          onTap: () => _service.launchURL(url),
+                          trailing: Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 10, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: Colors.greenAccent.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text("OPEN",
+                                style: GoogleFonts.outfit(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.greenAccent)),
                           ),
                         );
                       }),
-                ],
+                ),
               ),
-            ),
-          ),
 
-          // 3. Status Tile
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(20, 24, 20, 0),
-              child: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-                  stream: _service.streamCurrentUserProfile(),
-                  builder: (context, snapshot) {
-                    final data = snapshot.data?.data() ?? {};
-                    final url = _service.buildPublicPortfolioUrl(data);
-
-                    String displayUrl =
-                        url.replaceFirst(RegExp(r'^https?://'), '');
-
-                    return _ActionPanel(
-                      title: "Live Portfolio",
-                      subtitle: displayUrl,
-                      icon: Icons.language_rounded,
-                      color: Colors.greenAccent,
-                      onTap: () => _service.launchURL(url),
-                      trailing: Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 10, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: Colors.greenAccent.withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: Text("OPEN",
-                            style: GoogleFonts.outfit(
-                                fontSize: 10,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.greenAccent)),
-                      ),
-                    );
-                  }),
-            ),
-          ),
-
-          // 4. Analytics Section
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(20, 32, 20, 0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    "ANALYTICS",
-                    style: GoogleFonts.inter(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w800,
-                      color: AppTheme.textSecondary.withValues(alpha: 0.35),
-                      letterSpacing: 1.5,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  Row(
+              // 4. Analytics Section
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 32, 20, 0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Expanded(
-                        child: _MetricCard(
-                          label: "Projects",
-                          stream: _service.streamTotalProjectsCount(),
-                          icon: Icons.rocket_launch_rounded,
-                          color: AppTheme.primaryColor,
+                      Text(
+                        "ANALYTICS",
+                        style: GoogleFonts.inter(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w800,
+                          color: AppTheme.textSecondary.withValues(alpha: 0.35),
+                          letterSpacing: 1.5,
                         ),
                       ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: _MetricCard(
-                          label: "Messages",
-                          stream: _service.streamTotalMessagesCount(),
-                          icon: Icons.chat_bubble_rounded,
-                          color: Colors.blueAccent,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: _MetricCard(
-                          label: "Visits",
-                          stream: _service.streamTotalVisitsCount(),
-                          icon: Icons.remove_red_eye_rounded,
-                          color: Colors.purpleAccent,
-                          hasChart: true,
-                        ),
+                      const SizedBox(height: 16),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _MetricCard(
+                              label: "Projects",
+                              stream: _service.streamTotalProjectsCount(),
+                              icon: Icons.rocket_launch_rounded,
+                              color: AppTheme.primaryColor,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: _MetricCard(
+                              label: "Messages",
+                              stream: _service.streamTotalMessagesCount(),
+                              icon: Icons.chat_bubble_rounded,
+                              color: Colors.blueAccent,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: _MetricCard(
+                              label: "Visits",
+                              stream: _service.streamTotalVisitsCount(),
+                              icon: Icons.remove_red_eye_rounded,
+                              color: Colors.purpleAccent,
+                              hasChart: true,
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
-                ],
+                ),
               ),
+
+              // 5. Management Grid
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 32, 20, 0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        "QUICK ACTIONS",
+                        style: GoogleFonts.inter(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w800,
+                          color: AppTheme.textSecondary.withValues(alpha: 0.35),
+                          letterSpacing: 1.5,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      _ActionPanel(
+                        key: _projectsKey,
+                        title: "Projects Hub",
+                        subtitle: "Manage your works portfolio",
+                        icon: Icons.grid_view_rounded,
+                        color: AppTheme.primaryColor,
+                        onTap: () {
+                          if (_showTutorial) {
+                            _tutorialKey.currentState?.completeStep('projects');
+                            Future.delayed(const Duration(milliseconds: 500),
+                                () {
+                              if (context.mounted) {
+                                Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                        builder: (_) =>
+                                            const ProjectsScreen()));
+                              }
+                            });
+                          } else {
+                            Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                    builder: (_) => const ProjectsScreen()));
+                          }
+                        },
+                      ),
+                      const SizedBox(height: 12),
+                      _ActionPanel(
+                        title: "Content Editor",
+                        subtitle: "Update site text & info",
+                        icon: Icons.edit_note_rounded,
+                        color: Colors.blueAccent,
+                        onTap: () => Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                                builder: (_) =>
+                                    const ContentManagementScreen())),
+                      ),
+                      const SizedBox(height: 12),
+                      _ActionPanel(
+                        key: _resumeKey,
+                        title: "Resume & CV",
+                        subtitle: "Upload professional documents",
+                        icon: Icons.assignment_rounded,
+                        color: Colors.orangeAccent,
+                        onTap: () {
+                          if (_showTutorial) {
+                            _tutorialKey.currentState?.completeStep('resume');
+                            Future.delayed(const Duration(milliseconds: 500),
+                                () {
+                              if (context.mounted) {
+                                Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                        builder: (_) =>
+                                            const ResumeUploadScreen()));
+                              }
+                            });
+                          } else {
+                            Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                    builder: (_) =>
+                                        const ResumeUploadScreen()));
+                          }
+                        },
+                      ),
+                      const SizedBox(height: 12),
+                      _ActionPanel(
+                        key: _designKey,
+                        title: "Design Engine",
+                        subtitle: "Fine-tune your portfolio visual identity",
+                        icon: Icons.auto_awesome_rounded,
+                        color: AppTheme.primaryColor,
+                        onTap: () {
+                          if (_showTutorial) {
+                            _tutorialKey.currentState?.completeStep('design');
+                            Future.delayed(const Duration(milliseconds: 500),
+                                () {
+                              if (context.mounted) {
+                                Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                        builder: (_) =>
+                                            const DesignEngineScreen()));
+                              }
+                            });
+                          } else {
+                            Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                    builder: (_) =>
+                                        const DesignEngineScreen()));
+                          }
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
+              const SliverToBoxAdapter(child: SizedBox(height: 120)),
+            ],
+          ),
+        ),
+        if (_showTutorial)
+          Positioned.fill(
+            child: TutorialOverlay(
+              key: _tutorialKey,
+              currentScreen: 'home',
+              onDismiss: _dismissTutorial,
+              targets: {
+                'resume': _resumeKey,
+                'projects': _projectsKey,
+                'design': _designKey,
+              },
             ),
           ),
-
-          // 5. Management Grid
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(20, 32, 20, 0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    "QUICK ACTIONS",
-                    style: GoogleFonts.inter(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w800,
-                      color: AppTheme.textSecondary.withValues(alpha: 0.35),
-                      letterSpacing: 1.5,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  _ActionPanel(
-                    title: "Projects Hub",
-                    subtitle: "Manage your works portfolio",
-                    icon: Icons.grid_view_rounded,
-                    color: AppTheme.primaryColor,
-                    onTap: () => Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                            builder: (_) => const ProjectsScreen())),
-                  ),
-                  const SizedBox(height: 12),
-                  _ActionPanel(
-                    title: "Content Editor",
-                    subtitle: "Update site text & info",
-                    icon: Icons.edit_note_rounded,
-                    color: Colors.blueAccent,
-                    onTap: () => Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                            builder: (_) => const ContentManagementScreen())),
-                  ),
-                  const SizedBox(height: 12),
-                  _ActionPanel(
-                    title: "Resume & CV",
-                    subtitle: "Upload professional documents",
-                    icon: Icons.assignment_rounded,
-                    color: Colors.orangeAccent,
-                    onTap: () => Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                            builder: (_) => const ResumeUploadScreen())),
-                  ),
-                  const SizedBox(height: 12),
-                  _ActionPanel(
-                    title: "Design Engine",
-                    subtitle: "Fine-tune your portfolio visual identity",
-                    icon: Icons.auto_awesome_rounded,
-                    color: AppTheme.primaryColor,
-                    onTap: () => Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                            builder: (_) => const DesignEngineScreen())),
-                  ),
-                ],
-              ),
-            ),
-          ),
-
-          const SliverToBoxAdapter(child: SizedBox(height: 120)),
-        ],
-      ),
+      ],
     );
   }
 }
@@ -436,6 +578,7 @@ class _ActionPanel extends StatelessWidget {
   final Widget? trailing;
 
   const _ActionPanel({
+    super.key,
     required this.title,
     required this.subtitle,
     required this.icon,

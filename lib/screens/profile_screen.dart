@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../theme/app_theme.dart';
 import '../widgets/action_dialog.dart';
 import 'domain_settings_screen.dart';
@@ -86,6 +87,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
       try {
         await GoogleSignIn().signOut();
         await FirebaseAuth.instance.signOut();
+
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.remove('onboarding_complete');
+        await prefs.remove('tutorial_complete');
       } catch (e) {
         debugPrint("Error during sign out: $e");
         await FirebaseAuth.instance.signOut();
@@ -111,6 +116,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
       setState(() => _isLoading = true);
       try {
         await FirestoreService().clearPortfolioData();
+
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.remove('onboarding_complete');
+        await prefs.remove('tutorial_complete');
+
         if (mounted) {
           ActionDialog.show(
             context,

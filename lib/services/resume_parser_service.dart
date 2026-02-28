@@ -143,11 +143,11 @@ Use ONLY the information from your analysis above. Do not invent anything new.
     "backendTitle": "Cloud & Backend",
     "toolsTitle": "Workflow & Tools",
     "frameworksTitle": "Toolbox",
-    "frontend": [{"name": "<actual frontend tech they know>", "level": <0-100 based on your proficiency assessment>}],
-    "mobile": ["<actual mobile tech they know>"],
-    "backend": ["<actual backend/cloud tech they know>"],
-    "tools": ["<actual dev tool they use>"],
-    "frameworks": ["<actual framework or library they use>"]
+    "frontend": [{"name": "<actual frontend tech tech they know>", "level": <0-100>}],
+    "mobile": [{"name": "<actual mobile tech tech they know>", "level": <0-100>}],
+    "backend": [{"name": "<actual backend tech tech they know>", "level": <0-100>}],
+    "tools": [{"name": "<actual tool tech they know>", "level": <0-100>}],
+    "frameworks": [{"name": "<actual framework/library tech they know>", "level": <0-100>}]
   },
 
   "education": [
@@ -283,16 +283,16 @@ Return ONLY valid JSON. No markdown. Use ONLY real data from the resume above â€
     "toolsTitle": "Workflow & Tools",
     "frameworksTitle": "Toolbox",
     "frontend": [{"name": "<tech>", "level": <0-100>}],
-    "mobile": ["<tech>"],
-    "backend": ["<tech>"],
-    "tools": ["<tech>"],
-    "frameworks": ["<tech>"]
+    "mobile": [{"name": "<tech>", "level": <0-100>}],
+    "backend": [{"name": "<tech>", "level": <0-100>}],
+    "tools": [{"name": "<tech>", "level": <0-100>}],
+    "frameworks": [{"name": "<tech>", "level": <0-100>}]
   },
   "education": [{"degree": "<degree>", "institution": "<university>", "year": "<years>"}],
   "experience": [{"position": "<title>", "company": "<company>", "startDate": "<date>", "endDate": "<date>", "description": "<verbatim>"}],
   "projects": [{"title": "<name>", "description": "<short>", "fullDescription": "<full verbatim>", "role": "<role>", "techStack": ["<tech>"], "category": "<DOMAIN>", "liveLink": "", "githubLink": ""}],
   "contact": {"email": "<email>", "personalEmail": "<email>"},
-  "certifications": [],
+  "certifications": ["<actual certification with issuer if mentioned>"],
   "languages": ["<language>"]
 }
 ''';
@@ -370,8 +370,28 @@ Return ONLY valid JSON. No markdown. Use ONLY real data from the resume above â€
               .toList() ??
           [],
       skills: json['skills'] as Map<String, dynamic>? ?? {},
-      certifications: List<String>.from(json['certifications'] ?? []),
-      languages: List<String>.from(json['languages'] ?? []),
+      certifications: _safeListToString(json['certifications']),
+      languages: _safeListToString(json['languages']),
     );
+  }
+
+  List<String> _safeListToString(dynamic input) {
+    if (input == null || input is! List) return [];
+    return input
+        .map((item) {
+          if (item is String) return item;
+          if (item is Map) {
+            // Handle cases like {"name": "Python", "issuer": "Udemy"}
+            final name = item['name'] ?? item['title'] ?? item['label'] ?? '';
+            final issuer = item['issuer'] ?? item['organization'] ?? '';
+            if (name.isNotEmpty && issuer.isNotEmpty) {
+              return "$name ($issuer)";
+            }
+            return name.isNotEmpty ? name : item.toString();
+          }
+          return item.toString();
+        })
+        .toList()
+        .cast<String>();
   }
 }

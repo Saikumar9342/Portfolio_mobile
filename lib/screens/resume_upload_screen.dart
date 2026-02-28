@@ -12,6 +12,8 @@ import '../services/firestore_service.dart';
 import '../services/resume_parser_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/action_dialog.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import '../widgets/tutorial_overlay.dart';
 import '../widgets/primary_button.dart';
 
 // ─── Progress Step Model ──────────────────────────────────────────────────────
@@ -83,6 +85,39 @@ class _ResumeUploadScreenState extends State<ResumeUploadScreen> {
   // Progress state
   int _currentStep = 0;
   double _progress = 0.0;
+  bool _showTutorial = false;
+  final GlobalKey<TutorialOverlayState> _tutorialKey = GlobalKey();
+  final GlobalKey _uploadAreaKey = GlobalKey();
+
+  @override
+  void initState() {
+    super.initState();
+    _checkTutorial();
+  }
+
+  Future<void> _checkTutorial() async {
+    final prefs = await SharedPreferences.getInstance();
+    final List<String> completedKeys =
+        prefs.getStringList('tutorial_completed_task_keys') ?? [];
+
+    if (!completedKeys.contains('resume') && mounted) {
+      setState(() => _showTutorial = true);
+    }
+  }
+
+  void _dismissTutorial() async {
+    final prefs = await SharedPreferences.getInstance();
+    final List<String> completedKeys =
+        prefs.getStringList('tutorial_completed_task_keys') ?? [];
+
+    if (!completedKeys.contains('resume')) {
+      completedKeys.add('resume');
+      await prefs.setStringList('tutorial_completed_task_keys', completedKeys);
+      await prefs.setInt('tutorial_tasks_completed', completedKeys.length);
+    }
+
+    if (mounted) setState(() => _showTutorial = false);
+  }
 
   void _advanceToStep(int step) {
     if (!mounted) return;
@@ -95,6 +130,9 @@ class _ResumeUploadScreenState extends State<ResumeUploadScreen> {
   // ─── Pick Resume ─────────────────────────────────────────────────────────────
 
   Future<void> _pickResume() async {
+    if (_showTutorial) {
+      _tutorialKey.currentState?.completeStep('upload_area');
+    }
     try {
       final result = await FilePicker.platform.pickFiles(
         type: FileType.custom,
@@ -303,6 +341,25 @@ class _ResumeUploadScreenState extends State<ResumeUploadScreen> {
 
   @override
   Widget build(BuildContext context) {
+    return Stack(
+      children: [
+        _buildContent(context),
+        if (_showTutorial)
+          Positioned.fill(
+            child: TutorialOverlay(
+              key: _tutorialKey,
+              currentScreen: 'resume',
+              onDismiss: _dismissTutorial,
+              targets: {
+                'upload_area': _uploadAreaKey,
+              },
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildContent(BuildContext context) {
     final bool showProgress = _isParsing || _isLoading;
 
     return Scaffold(
@@ -406,8 +463,8 @@ class _ResumeUploadScreenState extends State<ResumeUploadScreen> {
                   value: value,
                   minHeight: 10,
                   backgroundColor: Colors.white10,
-                  valueColor:
-                      const AlwaysStoppedAnimation<Color>(AppTheme.primaryColor),
+                  valueColor: const AlwaysStoppedAnimation<Color>(
+                      AppTheme.primaryColor),
                 );
               },
             ),
@@ -529,6 +586,7 @@ class _ResumeUploadScreenState extends State<ResumeUploadScreen> {
             border: Border.all(color: Colors.white10),
           ),
           child: InkWell(
+            key: _uploadAreaKey,
             onTap: _pickResume,
             borderRadius: BorderRadius.circular(24),
             child: Center(
