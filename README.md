@@ -18,6 +18,38 @@ flutter pub get
 flutter run
 ```
 
+## Secure Config (Recommended)
+
+Prefer runtime defines (recommended for production):
+
+```bash
+flutter run \
+  --dart-define=GEMINI_API_KEY=... \
+  --dart-define=GROQ_API_KEY=... \
+  --dart-define=ADMIN_EMAIL=... \
+  --dart-define=GOOGLE_SERVER_CLIENT_ID=...
+```
+
+You can also use:
+
+```bash
+flutter run --dart-define-from-file=dart_defines.json
+```
+
+Where `dart_defines.json` contains:
+
+```json
+{
+  "GEMINI_API_KEY": "...",
+  "GROQ_API_KEY": "...",
+  "ADMIN_EMAIL": "...",
+  "GOOGLE_SERVER_CLIENT_ID": "..."
+}
+```
+
+`.env.example` is included as a key reference template.
+`.env` fallback is still supported for local development compatibility.
+
 ## Troubleshooting
 
 -   **"flutter" is not recognized...**: Make sure Flutter is installed and its `bin` directory is in your system PATH.

@@ -7,6 +7,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import '../theme/app_theme.dart';
 import '../widgets/brand_logo.dart';
+import '../config/app_config.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -17,16 +18,11 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen>
     with TickerProviderStateMixin {
-  static const String _googleServerClientId =
-      '16450323072-5u4bqmvvnkpf5bnds15lr7i4es6ko9dj.apps.googleusercontent.com';
   bool _isLoading = false;
   String? _error;
 
   final LocalAuthentication _localAuth = LocalAuthentication();
-  final GoogleSignIn _googleSignIn = GoogleSignIn(
-    scopes: <String>['email', 'profile'],
-    serverClientId: _googleServerClientId,
-  );
+  late final GoogleSignIn _googleSignIn;
 
   late AnimationController _pulseController;
   late Animation<double> _pulseAnimation;
@@ -37,6 +33,10 @@ class _LoginScreenState extends State<LoginScreen>
   @override
   void initState() {
     super.initState();
+    _googleSignIn = GoogleSignIn(
+      scopes: <String>['email', 'profile'],
+      serverClientId: AppConfig.googleServerClientId,
+    );
     _pulseController =
         AnimationController(vsync: this, duration: const Duration(seconds: 2))
           ..repeat(reverse: true);

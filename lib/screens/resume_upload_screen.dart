@@ -3,7 +3,6 @@ import 'dart:io';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:syncfusion_flutter_pdf/pdf.dart';
 
 import '../models/resume_data.dart';
@@ -15,6 +14,7 @@ import '../widgets/action_dialog.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../widgets/tutorial_overlay.dart';
 import '../widgets/primary_button.dart';
+import '../config/app_config.dart';
 
 // ─── Progress Step Model ──────────────────────────────────────────────────────
 
@@ -75,7 +75,7 @@ class ResumeUploadScreen extends StatefulWidget {
 }
 
 class _ResumeUploadScreenState extends State<ResumeUploadScreen> {
-  static String get _geminiApiKey => dotenv.env['GEMINI_API_KEY'] ?? "";
+  static String get _geminiApiKey => AppConfig.geminiApiKey;
 
   bool _isLoading = false;
   bool _isParsing = false;

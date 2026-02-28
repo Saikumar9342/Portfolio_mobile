@@ -2,9 +2,9 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:google_generative_ai/google_generative_ai.dart';
 import 'package:http/http.dart' as http;
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 import '../models/resume_data.dart';
 import '../models/portfolio_data.dart';
+import '../config/app_config.dart';
 
 abstract class ResumeParserService {
   Future<ResumeData> parseResume(String text);
@@ -19,7 +19,7 @@ class GeminiResumeParser implements ResumeParserService {
     'gemini-1.5-flash',
   ];
 
-  final String _groqApiKey = dotenv.env['GROQ_API_KEY'] ?? "";
+  final String _groqApiKey = AppConfig.groqApiKey;
 
   GeminiResumeParser({required this.apiKey});
 

@@ -136,7 +136,7 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
 
   Widget _buildScaffold(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
-    const adminEmail = "pasumarthisaikumar6266@gmail.com";
+    final isAdmin = _service.isCurrentUserAdmin;
 
     return Scaffold(
       backgroundColor: AppTheme.scaffoldBackgroundColor,
@@ -220,7 +220,7 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
                 if (docUserId != null) {
                   return docUserId == user?.uid;
                 }
-                if (user?.email == adminEmail) {
+                if (isAdmin) {
                   return true;
                 }
                 return false;

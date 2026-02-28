@@ -1,13 +1,18 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter/foundation.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../config/app_config.dart';
 
 class FirestoreService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
-  static String get _adminEmail => dotenv.env['ADMIN_EMAIL'] ?? '';
+  static String get _adminEmail => AppConfig.adminEmail;
   static const String _defaultPublicBaseUrl = "https://atom.anithix.com";
+
+  bool get isCurrentUserAdmin {
+    final user = FirebaseAuth.instance.currentUser;
+    return user != null && user.email == _adminEmail;
+  }
 
   // --- Language Support ---
 

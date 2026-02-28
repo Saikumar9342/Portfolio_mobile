@@ -1,8 +1,8 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:google_generative_ai/google_generative_ai.dart';
 import 'package:flutter/foundation.dart';
+import '../config/app_config.dart';
 
 class AIService {
   static final AIService _instance = AIService._internal();
@@ -13,10 +13,10 @@ class AIService {
   String? _groqApiKey;
 
   void initialize() {
-    final apiKey = dotenv.env['GEMINI_API_KEY'];
-    _groqApiKey = dotenv.env['GROQ_API_KEY'];
+    final apiKey = AppConfig.geminiApiKey;
+    _groqApiKey = AppConfig.groqApiKey;
 
-    if (apiKey != null && apiKey.isNotEmpty) {
+    if (apiKey.isNotEmpty) {
       _model = GenerativeModel(model: 'gemini-2.0-flash', apiKey: apiKey);
     }
   }
