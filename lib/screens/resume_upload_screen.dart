@@ -15,6 +15,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../widgets/tutorial_overlay.dart';
 import '../widgets/primary_button.dart';
 import '../config/app_config.dart';
+import '../services/entitlement_service.dart';
 
 // ─── Progress Step Model ──────────────────────────────────────────────────────
 
@@ -76,6 +77,7 @@ class ResumeUploadScreen extends StatefulWidget {
 
 class _ResumeUploadScreenState extends State<ResumeUploadScreen> {
   static String get _geminiApiKey => AppConfig.geminiApiKey;
+  final EntitlementService _entitlementService = EntitlementService();
 
   bool _isLoading = false;
   bool _isParsing = false;
@@ -160,6 +162,12 @@ class _ResumeUploadScreenState extends State<ResumeUploadScreen> {
   // ─── Parse Resume ─────────────────────────────────────────────────────────────
 
   Future<void> _parseResume() async {
+    final allowed = await _entitlementService.ensurePremiumAccess(
+      context,
+      featureName: "AI Resume Parser",
+    );
+    if (!allowed) return;
+
     if (_selectedFile == null) return;
 
     setState(() {
@@ -623,12 +631,43 @@ class _ResumeUploadScreenState extends State<ResumeUploadScreen> {
           ),
         ),
         const SizedBox(height: 24),
-        PrimaryButton(
-          text: "ANALYZE RESUME",
-          onPressed:
-              _selectedFile != null && !_isParsing ? _parseResume : () {},
-          isLoading: _isParsing,
-          icon: Icons.auto_awesome,
+        FutureBuilder<EntitlementState>(
+          future: _entitlementService.getCurrentEntitlement(),
+          builder: (context, snapshot) {
+            final canUsePremium = snapshot.data?.isPremium == true ||
+                snapshot.data?.isAdmin == true;
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                PrimaryButton(
+                  text: canUsePremium
+                      ? "ANALYZE RESUME"
+                      : "ANALYZE RESUME (LOCKED)",
+                  onPressed: canUsePremium
+                      ? (_selectedFile != null && !_isParsing
+                          ? _parseResume
+                          : () {})
+                      : () => _entitlementService.ensurePremiumAccess(
+                            context,
+                            featureName: "AI Resume Parser",
+                          ),
+                  isLoading: _isParsing,
+                  icon: canUsePremium
+                      ? Icons.auto_awesome
+                      : Icons.lock_rounded,
+                ),
+                if (!canUsePremium) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    "Upgrade to Premium to unlock AI resume parsing.",
+                    style:
+                        GoogleFonts.inter(fontSize: 12, color: Colors.white54),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+              ],
+            );
+          },
         ),
       ],
     );

@@ -5,12 +5,14 @@ import '../widgets/gradient_card.dart';
 import 'content_editor_screen.dart';
 import 'skills_manager_screen.dart';
 import 'language_list_screen.dart';
+import '../services/entitlement_service.dart';
 
 class ContentManagementScreen extends StatelessWidget {
   const ContentManagementScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
+    final entitlementFuture = EntitlementService().getCurrentEntitlement();
     return Scaffold(
       backgroundColor: AppTheme.scaffoldBackgroundColor,
       body: Stack(
@@ -50,90 +52,110 @@ class ContentManagementScreen extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(height: 32),
-                      GradientCard(
-                        padding: EdgeInsets.zero,
-                        child: Column(
-                          children: [
-                            _buildItem(
-                              context,
-                              "Hero Section",
-                              "Manage your intro text and hero image display.",
-                              Icons.monitor_rounded,
-                              () =>
-                                  _navToEditor(context, 'Hero Section', 'hero'),
-                            ),
-                            _buildItem(
-                              context,
-                              "About & Socials",
-                              "Update your bio, profile picture, and social links.",
-                              Icons.person_outline_rounded,
-                              () => _navToEditor(
-                                  context, 'About & Socials', 'about'),
-                            ),
-                            _buildItem(
-                              context,
-                              "Work Expertise",
-                              "Showcase your services and key achievements.",
-                              Icons.lightbulb_outline_rounded,
-                              () => _navToEditor(
-                                  context, 'Expertise', 'expertise'),
-                            ),
-                            _buildItem(
-                              context,
-                              "Tech Stack & Skills",
-                              "Organize your skills into categories.",
-                              Icons.code_rounded,
-                              () => Navigator.push(
+                      FutureBuilder(
+                        future: entitlementFuture,
+                        builder: (context, snapshot) {
+                          final canUsePremium =
+                              snapshot.data?.isPremium == true ||
+                                  snapshot.data?.isAdmin == true;
+                          return GradientCard(
+                            padding: EdgeInsets.zero,
+                            child: Column(
+                              children: [
+                                _buildItem(
                                   context,
-                                  MaterialPageRoute(
-                                      builder: (_) =>
-                                          const SkillsManagerScreen())),
-                            ),
-                            _buildItem(
-                              context,
-                              "Multi-Language",
-                              "Manage translations for your global audience.",
-                              Icons.translate_rounded,
-                              () => Navigator.push(
+                                  "Hero Section",
+                                  "Manage your intro text and hero image display.",
+                                  Icons.monitor_rounded,
+                                  () => _navToEditor(
+                                      context, 'Hero Section', 'hero'),
+                                ),
+                                _buildItem(
                                   context,
-                                  MaterialPageRoute(
-                                      builder: (_) =>
-                                          const LanguageListScreen())),
+                                  "About & Socials",
+                                  "Update your bio, profile picture, and social links.",
+                                  Icons.person_outline_rounded,
+                                  () => _navToEditor(
+                                      context, 'About & Socials', 'about'),
+                                ),
+                                _buildItem(
+                                  context,
+                                  "Work Expertise",
+                                  "Showcase your services and key achievements.",
+                                  Icons.lightbulb_outline_rounded,
+                                  () => _navToEditor(
+                                      context, 'Expertise', 'expertise'),
+                                ),
+                                _buildItem(
+                                  context,
+                                  "Tech Stack & Skills",
+                                  "Organize your skills into categories.",
+                                  Icons.code_rounded,
+                                  () => Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                          builder: (_) =>
+                                              const SkillsManagerScreen())),
+                                ),
+                                _buildItem(
+                                  context,
+                                  "Multi-Language${canUsePremium ? '' : ' (Locked)'}",
+                                  "Manage translations for your global audience.",
+                                  canUsePremium
+                                      ? Icons.translate_rounded
+                                      : Icons.lock_rounded,
+                                  () async {
+                                    final allowed = await EntitlementService()
+                                        .ensurePremiumAccess(
+                                      context,
+                                      featureName: "Multi-Language Translation",
+                                    );
+                                    if (!allowed || !context.mounted) return;
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (_) =>
+                                            const LanguageListScreen(),
+                                      ),
+                                    );
+                                  },
+                                ),
+                                _buildItem(
+                                  context,
+                                  "Contact Details",
+                                  "Update your email and contact form settings.",
+                                  Icons.email_outlined,
+                                  () => _navToEditor(
+                                      context, 'Contact Info', 'contact'),
+                                ),
+                                _buildItem(
+                                    context,
+                                    "Navigation Menu",
+                                    "Configure your website navigation items.",
+                                    Icons.menu_rounded,
+                                    () => _navToEditor(
+                                        context, 'Navbar', 'navbar')),
+                                _buildItem(
+                                  context,
+                                  "SEO & Meta Tags",
+                                  "Enhance your search visibility and link previews.",
+                                  Icons.travel_explore_rounded,
+                                  () => _navToEditor(
+                                      context, 'SEO Settings', 'seo'),
+                                ),
+                                _buildItem(
+                                  context,
+                                  "Projects Page",
+                                  "Configure the dedicated projects gallery.",
+                                  Icons.work_outline_rounded,
+                                  () => _navToEditor(
+                                      context, 'Projects Page', 'projects_page'),
+                                  isLast: true,
+                                ),
+                              ],
                             ),
-                            _buildItem(
-                              context,
-                              "Contact Details",
-                              "Update your email and contact form settings.",
-                              Icons.email_outlined,
-                              () => _navToEditor(
-                                  context, 'Contact Info', 'contact'),
-                            ),
-                            _buildItem(
-                                context,
-                                "Navigation Menu",
-                                "Configure your website navigation items.",
-                                Icons.menu_rounded,
-                                () =>
-                                    _navToEditor(context, 'Navbar', 'navbar')),
-                            _buildItem(
-                              context,
-                              "SEO & Meta Tags",
-                              "Enhance your search visibility and link previews.",
-                              Icons.travel_explore_rounded,
-                              () =>
-                                  _navToEditor(context, 'SEO Settings', 'seo'),
-                            ),
-                            _buildItem(
-                              context,
-                              "Projects Page",
-                              "Configure the dedicated projects gallery.",
-                              Icons.work_outline_rounded,
-                              () => _navToEditor(
-                                  context, 'Projects Page', 'projects_page'),
-                              isLast: true,
-                            ),
-                          ],
-                        ),
+                          );
+                        },
                       ),
                     ],
                   ),

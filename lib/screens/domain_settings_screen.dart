@@ -7,6 +7,7 @@ import '../theme/app_theme.dart';
 import '../widgets/action_dialog.dart';
 import '../widgets/custom_text_field.dart';
 import '../widgets/primary_button.dart';
+import '../services/entitlement_service.dart';
 
 class DomainSettingsScreen extends StatefulWidget {
   const DomainSettingsScreen({super.key});
@@ -17,6 +18,7 @@ class DomainSettingsScreen extends StatefulWidget {
 
 class _DomainSettingsScreenState extends State<DomainSettingsScreen> {
   final FirestoreService _service = FirestoreService();
+  final EntitlementService _entitlementService = EntitlementService();
   final TextEditingController _usernameController = TextEditingController();
   final TextEditingController _domainController = TextEditingController();
   final TextEditingController _baseUrlController = TextEditingController();
@@ -211,98 +213,128 @@ class _DomainSettingsScreenState extends State<DomainSettingsScreen> {
               _infoBox(
                   "Free users can customize their URL path (e.g., anithix.com/u/yourname). Changing this will immediately update your public link."),
               const SizedBox(height: 28),
-              _sectionTitle("Custom Domain (Premium-ready)"),
-              _infoBox(
-                  "Premium users can connect their own branded domain (e.g., yourname.com). This requires external DNS configuration."),
-              const SizedBox(height: 12),
-              CustomTextField(
-                label: "CUSTOM DOMAIN",
-                controller: _domainController,
-                hint: "yourname.com",
-                prefixIcon: Icons.language_rounded,
+              FutureBuilder<EntitlementState>(
+                future: _entitlementService.getCurrentEntitlement(),
+                builder: (context, entSnapshot) {
+                  final canUsePremium = entSnapshot.data?.isPremium == true ||
+                      entSnapshot.data?.isAdmin == true;
+                  return Column(
+                    children: [
+                      _sectionTitle("Custom Domain (Premium)"),
+                      _infoBox(canUsePremium
+                          ? "Premium users can connect their own branded domain (e.g., yourname.com). This requires external DNS configuration."
+                          : "Custom Domain is locked. Upgrade to Premium to connect your branded domain."),
+                      const SizedBox(height: 12),
+                      CustomTextField(
+                        label: "CUSTOM DOMAIN",
+                        controller: _domainController,
+                        hint: "yourname.com",
+                        prefixIcon: canUsePremium
+                            ? Icons.language_rounded
+                            : Icons.lock_rounded,
+                        enabled: canUsePremium,
+                      ),
+                      const SizedBox(height: 12),
+                      PrimaryButton(
+                        text: canUsePremium
+                            ? (customDomain.isEmpty
+                                ? "CONNECT DOMAIN"
+                                : "UPDATE DOMAIN")
+                            : "UNLOCK PREMIUM",
+                        icon: canUsePremium
+                            ? Icons.link_rounded
+                            : Icons.workspace_premium_rounded,
+                        onPressed: _isSavingDomain
+                            ? () {}
+                            : () async {
+                                if (!canUsePremium) {
+                                  await _entitlementService.ensurePremiumAccess(
+                                    context,
+                                    featureName: "Custom Domain",
+                                  );
+                                  return;
+                                }
+                                final value = _domainController.text.trim();
+                                if (value.isEmpty) return;
+
+                                final confirm = await ActionDialog.show(
+                                  this.context,
+                                  title: "Connect Custom Domain",
+                                  message:
+                                      "Are you sure you want to connect '$value' to your portfolio?",
+                                  confirmLabel: "CONNECT",
+                                  type: ActionDialogType.warning,
+                                  onConfirm: () {},
+                                );
+                                if (confirm != true) return;
+
+                                setState(() => _isSavingDomain = true);
+                                try {
+                                  await _service.setCustomDomain(value);
+                                  if (!mounted) return;
+                                  ActionDialog.show(
+                                    this.context,
+                                    title: "Domain Connected",
+                                    message:
+                                        "Domain mapping is saved. Add DNS records in your registrar so traffic reaches this app.",
+                                    onConfirm: () {},
+                                  );
+                                } catch (e) {
+                                  if (!mounted) return;
+                                  ActionDialog.show(
+                                    this.context,
+                                    title: "Domain Error",
+                                    message: e.toString(),
+                                    type: ActionDialogType.danger,
+                                    onConfirm: () {},
+                                  );
+                                } finally {
+                                  if (mounted) {
+                                    setState(() => _isSavingDomain = false);
+                                  }
+                                }
+                              },
+                        isLoading: _isSavingDomain,
+                      ),
+                      if (customDomain.isNotEmpty && canUsePremium) ...[
+                        const SizedBox(height: 10),
+                        OutlinedButton.icon(
+                          onPressed: () async {
+                            final confirm = await ActionDialog.show(
+                              this.context,
+                              title: "Remove Domain",
+                              message:
+                                  "Disconnect $customDomain from this portfolio?",
+                              confirmLabel: "REMOVE",
+                              type: ActionDialogType.warning,
+                              onConfirm: () {},
+                            );
+                            if (confirm != true) return;
+
+                            setState(() => _isSavingDomain = true);
+                            try {
+                              await _service.removeCustomDomain();
+                            } finally {
+                              if (mounted) {
+                                setState(() => _isSavingDomain = false);
+                              }
+                            }
+                          },
+                          icon: const Icon(Icons.link_off_rounded),
+                          label: const Text("REMOVE DOMAIN"),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: AppTheme.errorColor,
+                            side: BorderSide(
+                                color:
+                                    AppTheme.errorColor.withValues(alpha: 0.5)),
+                            minimumSize: const Size.fromHeight(48),
+                          ),
+                        ),
+                      ],
+                    ],
+                  );
+                },
               ),
-              const SizedBox(height: 12),
-              PrimaryButton(
-                text: customDomain.isEmpty ? "CONNECT DOMAIN" : "UPDATE DOMAIN",
-                icon: Icons.link_rounded,
-                onPressed: _isSavingDomain
-                    ? () {}
-                    : () async {
-                        final value = _domainController.text.trim();
-                        if (value.isEmpty) return;
-
-                        final confirm = await ActionDialog.show(
-                          context,
-                          title: "Connect Custom Domain",
-                          message:
-                              "Are you sure you want to connect '$value' to your portfolio?",
-                          confirmLabel: "CONNECT",
-                          type: ActionDialogType.warning,
-                          onConfirm: () {},
-                        );
-                        if (confirm != true) return;
-
-                        setState(() => _isSavingDomain = true);
-                        try {
-                          await _service.setCustomDomain(value);
-                          if (!mounted) return;
-                          ActionDialog.show(
-                            this.context,
-                            title: "Domain Connected",
-                            message:
-                                "Domain mapping is saved. Add DNS records in your registrar so traffic reaches this app.",
-                            onConfirm: () {},
-                          );
-                        } catch (e) {
-                          if (!mounted) return;
-                          ActionDialog.show(
-                            this.context,
-                            title: "Domain Error",
-                            message: e.toString(),
-                            type: ActionDialogType.danger,
-                            onConfirm: () {},
-                          );
-                        } finally {
-                          if (mounted) {
-                            setState(() => _isSavingDomain = false);
-                          }
-                        }
-                      },
-                isLoading: _isSavingDomain,
-              ),
-              if (customDomain.isNotEmpty) ...[
-                const SizedBox(height: 10),
-                OutlinedButton.icon(
-                  onPressed: () async {
-                    final confirm = await ActionDialog.show(
-                      this.context,
-                      title: "Remove Domain",
-                      message: "Disconnect $customDomain from this portfolio?",
-                      confirmLabel: "REMOVE",
-                      type: ActionDialogType.warning,
-                      onConfirm: () {},
-                    );
-                    if (confirm != true) return;
-
-                    setState(() => _isSavingDomain = true);
-                    try {
-                      await _service.removeCustomDomain();
-                    } finally {
-                      if (mounted) {
-                        setState(() => _isSavingDomain = false);
-                      }
-                    }
-                  },
-                  icon: const Icon(Icons.link_off_rounded),
-                  label: const Text("REMOVE DOMAIN"),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: AppTheme.errorColor,
-                    side: BorderSide(
-                        color: AppTheme.errorColor.withValues(alpha: 0.5)),
-                    minimumSize: const Size.fromHeight(48),
-                  ),
-                ),
-              ],
               const SizedBox(height: 20),
               Container(
                 padding: const EdgeInsets.all(16),

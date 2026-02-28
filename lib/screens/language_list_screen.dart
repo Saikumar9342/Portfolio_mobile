@@ -10,127 +10,262 @@ import 'content_editor_screen.dart';
 import 'projects_screen.dart';
 import 'skills_manager_screen.dart';
 import '../services/language_search_service.dart';
+import '../services/entitlement_service.dart';
 
 class LanguageListScreen extends StatelessWidget {
   const LanguageListScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-      stream: FirestoreService().streamLanguages(),
-      builder: (context, snapshot) {
-        if (snapshot.hasError) {
-          return Scaffold(
-            backgroundColor: AppTheme.scaffoldBackgroundColor,
-            body: Center(child: Text('Error: ${snapshot.error}')),
-          );
-        }
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Scaffold(
-            backgroundColor: AppTheme.scaffoldBackgroundColor,
-            body: Center(child: CircularProgressIndicator()),
-          );
-        }
+    final EntitlementService entitlementService = EntitlementService();
 
-        final docs = snapshot.data?.docs ?? [];
-        final languages =
-            docs.map((doc) => Language.fromMap(doc.data(), doc.id)).toList();
+    return FutureBuilder<EntitlementState>(
+        future: entitlementService.getCurrentEntitlement(),
+        builder: (context, entSnapshot) {
+          final bool canUsePremium = entSnapshot.data?.isPremium == true ||
+              entSnapshot.data?.isAdmin == true;
 
-        // Ensure default English exists in list for UI
-        if (!languages.any((l) => l.code == 'en')) {
-          languages.insert(
-              0,
-              Language(
-                code: 'en',
-                name: 'English',
-                flag: '🇺🇸',
-                isDefault: true,
-              ));
-        }
+          return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+            stream: FirestoreService().streamLanguages(),
+            builder: (context, snapshot) {
+              if (snapshot.hasError) {
+                return Scaffold(
+                  backgroundColor: AppTheme.scaffoldBackgroundColor,
+                  body: Center(child: Text('Error: ${snapshot.error}')),
+                );
+              }
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Scaffold(
+                  backgroundColor: AppTheme.scaffoldBackgroundColor,
+                  body: Center(child: CircularProgressIndicator()),
+                );
+              }
 
-        return Scaffold(
-          backgroundColor: AppTheme.scaffoldBackgroundColor,
-          appBar: AppBar(
-            backgroundColor: AppTheme.scaffoldBackgroundColor,
-            elevation: 0,
-            title: Text(
-              "Languages",
-              style: GoogleFonts.outfit(fontWeight: FontWeight.bold),
-            ),
-            actions: [
-              IconButton(
-                icon: const Icon(Icons.sync_rounded, color: Colors.blueAccent),
-                tooltip: "Sync global languages",
-                onPressed: () async {
-                  _showProcessingDialog(context);
-                  try {
-                    await LanguageSearchService().seedLanguagesFromApi();
-                    if (context.mounted) {
-                      Navigator.pop(context); // pop processor
-                      _showStatusDialog(
-                        context,
-                        title: "Sync Successful",
-                        message:
-                            "The global language database has been updated.",
-                      );
-                    }
-                  } catch (e) {
-                    if (context.mounted) {
-                      Navigator.pop(context); // pop processor
-                      _showStatusDialog(
-                        context,
-                        title: "Sync Failed",
-                        message: e.toString(),
-                        isError: true,
-                      );
-                    }
-                  }
-                },
-              ),
-              IconButton(
-                icon: const Icon(Icons.add, color: AppTheme.primaryColor),
-                onPressed: () => _showAddLanguageDialog(context, languages),
-              ),
-            ],
-          ),
-          body: ListView.builder(
-            padding: const EdgeInsets.all(16),
-            itemCount: languages.length,
-            itemBuilder: (context, index) {
-              final lang = languages[index];
-              return Card(
-                color: AppTheme.surfaceColor,
-                margin: const EdgeInsets.only(bottom: 12),
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16)),
-                child: ListTile(
-                  leading: Text(lang.flag ?? '🌐',
-                      style: const TextStyle(fontSize: 24)),
-                  title: Text(lang.name,
-                      style: const TextStyle(
-                          color: Colors.white, fontWeight: FontWeight.bold)),
-                  subtitle: Text(lang.code.toUpperCase(),
-                      style: const TextStyle(color: Colors.white70)),
-                  trailing: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      if (!lang.isDefault && lang.code != 'en')
-                        IconButton(
-                          icon:
-                              const Icon(Icons.delete, color: Colors.redAccent),
-                          onPressed: () => _deleteLanguage(context, lang.code),
-                        ),
-                      const Icon(Icons.chevron_right, color: Colors.white54),
-                    ],
+              final docs = snapshot.data?.docs ?? [];
+              final languages = docs
+                  .map((doc) => Language.fromMap(doc.data(), doc.id))
+                  .toList();
+
+              // Ensure default English exists in list for UI
+              if (!languages.any((l) => l.code == 'en')) {
+                languages.insert(
+                    0,
+                    Language(
+                      code: 'en',
+                      name: 'English',
+                      flag: '🇺🇸',
+                      isDefault: true,
+                    ));
+              }
+
+              return Scaffold(
+                backgroundColor: AppTheme.scaffoldBackgroundColor,
+                appBar: AppBar(
+                  backgroundColor: AppTheme.scaffoldBackgroundColor,
+                  elevation: 0,
+                  title: Text(
+                    "Languages",
+                    style: GoogleFonts.outfit(fontWeight: FontWeight.bold),
                   ),
-                  onTap: () => _showLanguageContentOptions(context, lang),
+                  actions: [
+                    IconButton(
+                      icon: Icon(Icons.sync_rounded,
+                          color: canUsePremium
+                              ? Colors.blueAccent
+                              : Colors.white24),
+                      tooltip: "Sync global languages",
+                      onPressed: () async {
+                        if (!canUsePremium) {
+                          await entitlementService.ensurePremiumAccess(context,
+                              featureName: "Global Sync");
+                          return;
+                        }
+                        _syncLanguages(context);
+                      },
+                    ),
+                    IconButton(
+                      icon: Icon(Icons.add,
+                          color: canUsePremium
+                              ? AppTheme.primaryColor
+                              : Colors.white24),
+                      onPressed: () async {
+                        if (!canUsePremium) {
+                          await entitlementService.ensurePremiumAccess(context,
+                              featureName: "Multi-Language");
+                          return;
+                        }
+                        _showAddLanguageDialog(context, languages);
+                      },
+                    ),
+                  ],
+                ),
+                body: ListView.builder(
+                  padding: const EdgeInsets.all(16),
+                  itemCount: languages.length + (canUsePremium ? 0 : 1),
+                  itemBuilder: (context, index) {
+                    if (!canUsePremium && index == 0) {
+                      return _buildPremiumPromo(context, entitlementService);
+                    }
+
+                    final int langIndex = canUsePremium ? index : index - 1;
+                    final lang = languages[langIndex];
+                    final bool isLocked = !canUsePremium && lang.code != 'en';
+
+                    return Card(
+                      color: AppTheme.surfaceColor,
+                      margin: const EdgeInsets.only(bottom: 12),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16)),
+                      child: ListTile(
+                        leading: Text(lang.flag ?? '🌐',
+                            style: const TextStyle(fontSize: 24)),
+                        title: Row(
+                          children: [
+                            Text(lang.name,
+                                style: const TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold)),
+                            if (isLocked) ...[
+                              const SizedBox(width: 8),
+                              const Icon(Icons.lock_rounded,
+                                  size: 14, color: Colors.white38),
+                            ],
+                          ],
+                        ),
+                        subtitle: Text(lang.code.toUpperCase(),
+                            style: const TextStyle(color: Colors.white70)),
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (!lang.isDefault &&
+                                lang.code != 'en' &&
+                                canUsePremium)
+                              IconButton(
+                                icon: const Icon(Icons.delete,
+                                    color: Colors.redAccent),
+                                onPressed: () =>
+                                    _deleteLanguage(context, lang.code),
+                              ),
+                            const Icon(Icons.chevron_right,
+                                color: Colors.white54),
+                          ],
+                        ),
+                        onTap: () async {
+                          if (isLocked) {
+                            await entitlementService.ensurePremiumAccess(
+                                context,
+                                featureName: "Multi-Language");
+                            return;
+                          }
+                          _showLanguageContentOptions(context, lang);
+                        },
+                      ),
+                    );
+                  },
                 ),
               );
             },
+          );
+        });
+  }
+
+  Widget _buildPremiumPromo(
+      BuildContext context, EntitlementService entitlementService) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 24),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            AppTheme.primaryColor.withValues(alpha: 0.15),
+            AppTheme.primaryColor.withValues(alpha: 0.05),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: AppTheme.primaryColor.withValues(alpha: 0.2)),
+      ),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: AppTheme.primaryColor.withValues(alpha: 0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.workspace_premium_rounded,
+                    color: AppTheme.primaryColor, size: 24),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      "Global Presence",
+                      style: GoogleFonts.outfit(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white),
+                    ),
+                    Text(
+                      "Scale your portfolio across 50+ languages with automated AI translation.",
+                      style: GoogleFonts.inter(
+                          fontSize: 12, color: Colors.white70, height: 1.4),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
-        );
-      },
+          const SizedBox(height: 20),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: () => entitlementService.ensurePremiumAccess(context,
+                  featureName: "Multi-Language"),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppTheme.primaryColor,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12)),
+              ),
+              child: const Text("UPGRADE TO PREMIUM",
+                  style: TextStyle(
+                      fontWeight: FontWeight.bold, letterSpacing: 1.2)),
+            ),
+          ),
+        ],
+      ),
     );
+  }
+
+  Future<void> _syncLanguages(BuildContext context) async {
+    _showProcessingDialog(context);
+    try {
+      await LanguageSearchService().seedLanguagesFromApi();
+      if (context.mounted) {
+        Navigator.pop(context); // pop processor
+        _showStatusDialog(
+          context,
+          title: "Sync Successful",
+          message: "The global language database has been updated.",
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        Navigator.pop(context); // pop processor
+        _showStatusDialog(
+          context,
+          title: "Sync Failed",
+          message: e.toString(),
+          isError: true,
+        );
+      }
+    }
   }
 
   void _showAddLanguageDialog(

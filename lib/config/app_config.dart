@@ -36,6 +36,10 @@ class AppConfig {
       String.fromEnvironment('ADMIN_EMAIL', defaultValue: '');
   static const String _googleServerClientIdDefine =
       String.fromEnvironment('GOOGLE_SERVER_CLIENT_ID', defaultValue: '');
+  static const String _premiumMonthlyPaymentUrlDefine =
+      String.fromEnvironment('PREMIUM_MONTHLY_PAYMENT_URL', defaultValue: '');
+  static const String _premiumYearlyPaymentUrlDefine =
+      String.fromEnvironment('PREMIUM_YEARLY_PAYMENT_URL', defaultValue: '');
 
   static String get geminiApiKey => _pick(
         defineValue: _geminiDefine,
@@ -60,6 +64,16 @@ class AppConfig {
             '16450323072-5u4bqmvvnkpf5bnds15lr7i4es6ko9dj.apps.googleusercontent.com',
       );
 
+  static String get premiumMonthlyPaymentUrl => _pick(
+        defineValue: _premiumMonthlyPaymentUrlDefine,
+        dotenvKey: 'PREMIUM_MONTHLY_PAYMENT_URL',
+      );
+
+  static String get premiumYearlyPaymentUrl => _pick(
+        defineValue: _premiumYearlyPaymentUrlDefine,
+        dotenvKey: 'PREMIUM_YEARLY_PAYMENT_URL',
+      );
+
   static void debugPrintConfigSource() {
     if (!kDebugMode) return;
     debugPrint(
@@ -73,6 +87,12 @@ class AppConfig {
     );
     debugPrint(
       '[AppConfig] Using dart-define for GOOGLE_SERVER_CLIENT_ID: ${_googleServerClientIdDefine.isNotEmpty}',
+    );
+    debugPrint(
+      '[AppConfig] Using dart-define for PREMIUM_MONTHLY_PAYMENT_URL: ${_premiumMonthlyPaymentUrlDefine.isNotEmpty}',
+    );
+    debugPrint(
+      '[AppConfig] Using dart-define for PREMIUM_YEARLY_PAYMENT_URL: ${_premiumYearlyPaymentUrlDefine.isNotEmpty}',
     );
   }
 }

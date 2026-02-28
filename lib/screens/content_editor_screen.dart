@@ -9,6 +9,7 @@ import '../widgets/custom_text_field.dart';
 import '../widgets/primary_button.dart';
 import '../widgets/action_dialog.dart';
 import '../services/ai_service.dart';
+import '../services/entitlement_service.dart';
 
 enum DataType { string, stringList, objectList, json, image }
 
@@ -45,6 +46,7 @@ class _ContentEditorScreenState extends State<ContentEditorScreen> {
   bool _isDirty = false;
   bool _isProgrammaticFieldUpdate = false;
   final CloudinaryService _cloudinaryService = CloudinaryService();
+  final EntitlementService _entitlementService = EntitlementService();
   static const Set<String> _numericObjectKeys = {
     'level',
     'score',
@@ -761,66 +763,87 @@ class _ContentEditorScreenState extends State<ContentEditorScreen> {
         children: [
           textField,
           const SizedBox(height: 8),
-          Align(
-            alignment: Alignment.centerRight,
-            child: TextButton.icon(
-              onPressed: () async {
-                final currentText = field.controller.text.trim();
-                if (currentText.isEmpty) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                        content:
-                            Text("Please enter some text first to enhance.")),
-                  );
-                  return;
-                }
+          FutureBuilder<EntitlementState>(
+            future: _entitlementService.getCurrentEntitlement(),
+            builder: (context, snapshot) {
+              final canUsePremium = snapshot.data?.isPremium == true ||
+                  snapshot.data?.isAdmin == true;
+              return Align(
+                alignment: Alignment.centerRight,
+                child: TextButton.icon(
+                  onPressed: () async {
+                    if (!canUsePremium) {
+                      await _entitlementService.ensurePremiumAccess(
+                        context,
+                        featureName: "AI Content Enhance",
+                      );
+                      return;
+                    }
 
-                showDialog(
-                  context: context,
-                  barrierDismissible: false,
-                  builder: (ctx) => const Center(
-                    child:
-                        CircularProgressIndicator(color: AppTheme.primaryColor),
-                  ),
-                );
+                    final currentText = field.controller.text.trim();
+                    if (currentText.isEmpty) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                            content: Text(
+                                "Please enter some text first to enhance.")),
+                      );
+                      return;
+                    }
 
-                try {
-                  final enhancedText =
-                      await AIService().enhanceText(currentText, key);
-                  if (mounted) Navigator.pop(context); // close dialog
-                  if (enhancedText != null && mounted) {
-                    _setFieldText(field, enhancedText);
-                    _markDirty();
-                  }
-                } catch (e) {
-                  if (mounted) {
-                    Navigator.pop(context); // close dialog
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                          content: Text(e.toString()),
-                          backgroundColor: Colors.redAccent),
+                    showDialog(
+                      context: context,
+                      barrierDismissible: false,
+                      builder: (ctx) => const Center(
+                        child: CircularProgressIndicator(
+                            color: AppTheme.primaryColor),
+                      ),
                     );
-                  }
-                }
-              },
-              icon: const Icon(Icons.auto_awesome,
-                  color: AppTheme.primaryColor, size: 18),
-              label: Text(
-                "AI Enhance",
-                style: GoogleFonts.inter(
-                  color: AppTheme.primaryColor,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 12,
+
+                    try {
+                      final enhancedText =
+                          await AIService().enhanceText(currentText, key);
+                      if (context.mounted) {
+                        Navigator.pop(context); // close dialog
+                      }
+                      if (enhancedText != null && mounted) {
+                        _setFieldText(field, enhancedText);
+                        _markDirty();
+                      }
+                    } catch (e) {
+                      if (context.mounted) {
+                        Navigator.pop(context); // close dialog
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                              content: Text(e.toString()),
+                              backgroundColor: Colors.redAccent),
+                        );
+                      }
+                    }
+                  },
+                  icon: Icon(
+                    canUsePremium ? Icons.auto_awesome : Icons.lock_rounded,
+                    color: AppTheme.primaryColor,
+                    size: 18,
+                  ),
+                  label: Text(
+                    canUsePremium ? "AI Enhance" : "AI Enhance (Locked)",
+                    style: GoogleFonts.inter(
+                      color: AppTheme.primaryColor,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 12,
+                    ),
+                  ),
+                  style: TextButton.styleFrom(
+                    backgroundColor:
+                        AppTheme.primaryColor.withValues(alpha: 0.1),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12)),
+                  ),
                 ),
-              ),
-              style: TextButton.styleFrom(
-                backgroundColor: AppTheme.primaryColor.withValues(alpha: 0.1),
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12)),
-              ),
-            ),
+              );
+            },
           )
         ],
       );

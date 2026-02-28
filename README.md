@@ -27,7 +27,9 @@ flutter run \
   --dart-define=GEMINI_API_KEY=... \
   --dart-define=GROQ_API_KEY=... \
   --dart-define=ADMIN_EMAIL=... \
-  --dart-define=GOOGLE_SERVER_CLIENT_ID=...
+  --dart-define=GOOGLE_SERVER_CLIENT_ID=... \
+  --dart-define=PREMIUM_MONTHLY_PAYMENT_URL=... \
+  --dart-define=PREMIUM_YEARLY_PAYMENT_URL=...
 ```
 
 You can also use:
@@ -43,7 +45,9 @@ Where `dart_defines.json` contains:
   "GEMINI_API_KEY": "...",
   "GROQ_API_KEY": "...",
   "ADMIN_EMAIL": "...",
-  "GOOGLE_SERVER_CLIENT_ID": "..."
+  "GOOGLE_SERVER_CLIENT_ID": "...",
+  "PREMIUM_MONTHLY_PAYMENT_URL": "...",
+  "PREMIUM_YEARLY_PAYMENT_URL": "..."
 }
 ```
 

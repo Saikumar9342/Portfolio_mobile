@@ -7,6 +7,7 @@ import '../theme/app_theme.dart';
 import '../widgets/action_dialog.dart';
 import 'domain_settings_screen.dart';
 import '../services/firestore_service.dart';
+import 'payment_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -289,6 +290,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     context,
                     MaterialPageRoute(
                         builder: (_) => const DomainSettingsScreen()),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                _buildActionCard(
+                  title: "Upgrade to Premium",
+                  subtitle: "Unlock AI tools, custom domain and translations",
+                  icon: Icons.workspace_premium_rounded,
+                  color: AppTheme.primaryColor,
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const PaymentScreen(
+                        featureName: "Premium Features",
+                      ),
+                    ),
                   ),
                 ),
                 const SizedBox(height: 16),
