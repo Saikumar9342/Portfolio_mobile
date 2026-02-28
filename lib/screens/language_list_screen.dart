@@ -12,12 +12,59 @@ import 'skills_manager_screen.dart';
 import '../services/language_search_service.dart';
 import '../services/entitlement_service.dart';
 
-class LanguageListScreen extends StatelessWidget {
+class _TranslationUiProgress {
+  final String message;
+  final int completed;
+  final int total;
+
+  const _TranslationUiProgress({
+    required this.message,
+    required this.completed,
+    required this.total,
+  });
+
+  double get fraction => total <= 0 ? 0 : (completed / total).clamp(0, 1).toDouble();
+
+  String get counterLabel => '$completed/$total';
+}
+
+class LanguageListScreen extends StatefulWidget {
   const LanguageListScreen({super.key});
 
   @override
+  State<LanguageListScreen> createState() => _LanguageListScreenState();
+}
+
+class _LanguageListScreenState extends State<LanguageListScreen> {
+  final EntitlementService _entitlementService = EntitlementService();
+  bool _autoSyncTriggered = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _autoSyncLanguagesIfEligible();
+    });
+  }
+
+  Future<void> _autoSyncLanguagesIfEligible() async {
+    if (_autoSyncTriggered) return;
+    _autoSyncTriggered = true;
+
+    try {
+      final entitlement = await _entitlementService.getCurrentEntitlement();
+      final canUsePremium = entitlement.isPremium || entitlement.isAdmin;
+      if (!canUsePremium) return;
+
+      await LanguageSearchService().seedLanguagesFromApi();
+    } catch (e) {
+      debugPrint('Auto language sync failed: $e');
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final EntitlementService entitlementService = EntitlementService();
+    final entitlementService = _entitlementService;
 
     return FutureBuilder<EntitlementState>(
         future: entitlementService.getCurrentEntitlement(),
@@ -364,7 +411,15 @@ class LanguageListScreen extends StatelessWidget {
                 String langName = nameCtrl.text.trim();
                 if (langName.isEmpty) return;
 
-                _showProcessingDialog(context);
+                final progressNotifier = ValueNotifier<_TranslationUiProgress>(
+                  const _TranslationUiProgress(
+                    message: "Preparing translation...",
+                    completed: 0,
+                    total: 1,
+                  ),
+                );
+
+                _showProcessingDialog(context, progressNotifier: progressNotifier);
 
                 try {
                   String langCode = codeCtrl.text.trim().toLowerCase();
@@ -382,7 +437,7 @@ class LanguageListScreen extends StatelessWidget {
                       langCode = langName.length >= 2
                           ? langName.substring(0, 2).toLowerCase()
                           : langName.toLowerCase();
-                      flagEmoji = '🌐';
+                      flagEmoji = '??';
                     }
                   }
 
@@ -409,8 +464,20 @@ class LanguageListScreen extends StatelessWidget {
                     'isDefault': false,
                   });
 
-                  await TranslationService()
-                      .translateAndSaveContentForLanguage(langCode);
+                  await TranslationService().translateAndSaveContentForLanguage(
+                    langCode,
+                    onProgress: ({
+                      required String message,
+                      required int completed,
+                      required int total,
+                    }) {
+                      progressNotifier.value = _TranslationUiProgress(
+                        message: message,
+                        completed: completed,
+                        total: total,
+                      );
+                    },
+                  );
 
                   if (context.mounted) {
                     Navigator.pop(context); // pop processing dialog
@@ -433,6 +500,8 @@ class LanguageListScreen extends StatelessWidget {
                       isError: true,
                     );
                   }
+                } finally {
+                  progressNotifier.dispose();
                 }
               },
               child: const Text("Add & Translate"),
@@ -443,57 +512,116 @@ class LanguageListScreen extends StatelessWidget {
     );
   }
 
-  void _showProcessingDialog(BuildContext context) {
+  void _showProcessingDialog(
+    BuildContext context, {
+    ValueNotifier<_TranslationUiProgress>? progressNotifier,
+  }) {
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (ctx) => Center(
         child: Container(
           margin: const EdgeInsets.symmetric(horizontal: 40),
-          padding: const EdgeInsets.all(32),
+          padding: const EdgeInsets.all(28),
           decoration: BoxDecoration(
             color: AppTheme.surfaceColor.withValues(alpha: 0.9),
             borderRadius: BorderRadius.circular(32),
             border:
                 Border.all(color: AppTheme.primaryColor.withValues(alpha: 0.2)),
           ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const SizedBox(
-                width: 40,
-                height: 40,
-                child: CircularProgressIndicator(
-                  strokeWidth: 3,
-                  valueColor:
-                      AlwaysStoppedAnimation<Color>(AppTheme.primaryColor),
+          child: progressNotifier == null
+              ? Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const SizedBox(
+                      width: 40,
+                      height: 40,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 3,
+                        valueColor: AlwaysStoppedAnimation<Color>(
+                            AppTheme.primaryColor),
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    Text(
+                      "Synchronizing Experience",
+                      style: GoogleFonts.outfit(
+                        color: AppTheme.primaryColor,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 2,
+                        decoration: TextDecoration.none,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      "Setting up language & translating content...",
+                      style: GoogleFonts.inter(
+                        color: Colors.white70,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                        decoration: TextDecoration.none,
+                      ),
+                      textAlign: TextAlign.center,
+                    )
+                  ],
+                )
+              : ValueListenableBuilder<_TranslationUiProgress>(
+                  valueListenable: progressNotifier,
+                  builder: (context, progress, _) {
+                    return Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Text(
+                          "Synchronizing Experience",
+                          style: GoogleFonts.outfit(
+                            color: AppTheme.primaryColor,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: 2,
+                            decoration: TextDecoration.none,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          progress.message,
+                          style: GoogleFonts.inter(
+                            color: Colors.white,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            decoration: TextDecoration.none,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 12),
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(10),
+                          child: LinearProgressIndicator(
+                            value: progress.fraction,
+                            minHeight: 8,
+                            backgroundColor: Colors.white10,
+                            valueColor: const AlwaysStoppedAnimation<Color>(
+                                AppTheme.primaryColor),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          progress.counterLabel,
+                          style: GoogleFonts.inter(
+                            color: Colors.white70,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w500,
+                            decoration: TextDecoration.none,
+                          ),
+                          textAlign: TextAlign.right,
+                        ),
+                      ],
+                    );
+                  },
                 ),
-              ),
-              const SizedBox(height: 24),
-              Text(
-                "Synchronizing Experience",
-                style: GoogleFonts.outfit(
-                  color: AppTheme.primaryColor,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: 2,
-                  decoration: TextDecoration.none,
-                ),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 8),
-              Text(
-                "Setting up language & translating content...",
-                style: GoogleFonts.inter(
-                  color: Colors.white70,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w500,
-                  decoration: TextDecoration.none,
-                ),
-                textAlign: TextAlign.center,
-              )
-            ],
-          ),
         ),
       ),
     );
@@ -722,3 +850,6 @@ class LanguageListScreen extends StatelessWidget {
     );
   }
 }
+
+
+

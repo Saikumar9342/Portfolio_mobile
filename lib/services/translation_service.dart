@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:translator/translator.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'firestore_service.dart';
 
 class TranslationService {
@@ -17,8 +18,35 @@ class TranslationService {
     'skills',
   ];
 
-  Future<void> translateAndSaveContentForLanguage(String languageCode) async {
+  Future<void> translateAndSaveContentForLanguage(
+    String languageCode, {
+    void Function({
+      required String message,
+      required int completed,
+      required int total,
+    })? onProgress,
+  }) async {
     debugPrint("Starting translation for language: $languageCode");
+
+    QuerySnapshot? projectsSnapshot;
+    try {
+      projectsSnapshot = await _firestoreService.streamProjects().first;
+    } catch (e) {
+      debugPrint("Error fetching projects before translation: $e");
+    }
+
+    final totalSteps = _contentDocIds.length + (projectsSnapshot?.docs.length ?? 0);
+    var completedSteps = 0;
+
+    void emitProgress(String message) {
+      onProgress?.call(
+        message: message,
+        completed: completedSteps,
+        total: totalSteps == 0 ? 1 : totalSteps,
+      );
+    }
+
+    emitProgress("Preparing translation...");
 
     // 1. Translate Content Documents (Hero, About, etc.)
     for (final docId in _contentDocIds) {
@@ -31,6 +59,7 @@ class TranslationService {
         if (contentSnapshot.exists && contentSnapshot.data() != null) {
           final data = contentSnapshot.data() as Map<String, dynamic>;
           debugPrint("Translating doc: $docId");
+          emitProgress("Translating $docId...");
           final translatedData = await _translateMap(data, languageCode);
 
           // Save to new language path
@@ -40,26 +69,30 @@ class TranslationService {
       } catch (e) {
         debugPrint("Error translating doc $docId: $e");
       }
+      completedSteps += 1;
+      emitProgress("Completed $docId");
     }
 
     // 2. Translate Projects
     try {
-      // Get all projects from default (root/English) collection
-      final projectsSnapshot = await _firestoreService.streamProjects().first;
-
-      debugPrint("Translating ${projectsSnapshot.docs.length} projects...");
-      for (final doc in projectsSnapshot.docs) {
+      final projectDocs = projectsSnapshot?.docs ?? [];
+      debugPrint("Translating ${projectDocs.length} projects...");
+      for (final doc in projectDocs) {
         final data = doc.data() as Map<String, dynamic>;
+        emitProgress("Translating project: ${doc.id}");
         final translatedData = await _translateMap(data, languageCode);
 
         // Save using setProject to keep the same ID in the new language collection
         await _firestoreService.setProject(doc.id, translatedData,
             languageCode: languageCode);
+        completedSteps += 1;
+        emitProgress("Completed project: ${doc.id}");
       }
     } catch (e) {
       debugPrint("Error translating projects: $e");
     }
 
+    emitProgress("Translation completed");
     debugPrint("Translation completed for $languageCode");
   }
 
