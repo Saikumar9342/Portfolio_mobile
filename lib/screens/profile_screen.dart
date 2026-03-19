@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../theme/app_theme.dart';
 import '../widgets/action_dialog.dart';
 import 'domain_settings_screen.dart';
@@ -140,6 +141,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
         }
       } finally {
         if (mounted) setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  Future<void> _launchUrl(String urlString) async {
+    final Uri url = Uri.parse(urlString);
+    if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not launch $urlString')),
+        );
       }
     }
   }
@@ -322,6 +334,26 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   icon: Icons.logout_rounded,
                   color: AppTheme.errorColor,
                   onTap: _handleLogout,
+                ),
+                const SizedBox(height: 32),
+                _buildSectionHeader("LEGAL"),
+                const SizedBox(height: 16),
+                _buildActionCard(
+                  title: "Privacy Policy",
+                  subtitle: "Read our privacy policy",
+                  icon: Icons.privacy_tip_rounded,
+                  color: AppTheme.textSecondary,
+                  onTap: () =>
+                      _launchUrl('https://atom.anithix.com/privacy-policy'),
+                ),
+                const SizedBox(height: 16),
+                _buildActionCard(
+                  title: "Terms of Service",
+                  subtitle: "Read our terms of service",
+                  icon: Icons.description_rounded,
+                  color: AppTheme.textSecondary,
+                  onTap: () =>
+                      _launchUrl('https://atom.anithix.com/terms-of-service'),
                 ),
                 const SizedBox(height: 80),
               ]),
